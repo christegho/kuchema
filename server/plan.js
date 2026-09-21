@@ -16,7 +16,7 @@ export const advanceSchema=z.object({layerOrder:z.array(z.string().max(30)).min(
 
 export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  const base=advanceSchema.shape.images.element,permitted=job.useReferences?referenceArchive.filter(a=>a.allowReference).map(a=>a.id):[];
- const referenceIds=permitted.length?z.array(z.enum(permitted)).min(1).max(2):z.array(z.string()).max(0);
+ const permittedPeople=permitted.filter(id=>job.humanContextIds?.includes(id));
  const transform=base.shape.transform,none=transform.extend({type:z.literal('none')});
  const permittedTransforms=TRANSFORMS.filter(type=>job.recolouring||type!=='recolour');
  const permittedTransform=transform.extend({type:z.enum(permittedTransforms)});
@@ -26,6 +26,8 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  for(let i=0;i<job.count;i++){
   const key=`F${String(i+1).padStart(2,'0')}`,a=i<job.count-generatedCount?archive[i]:null,generationIndex=i-(job.count-generatedCount);
   const requiredRole=a?'environment':job.requiresGeneratedEnvironment&&generationIndex===0?'environment':job.requiresGeneratedPeople&&generationIndex===(job.requiresGeneratedEnvironment?1:0)?'people':null;
+  const referencePool=requiredRole==='people'?permittedPeople:permitted;
+  const referenceIds=referencePool.length?z.array(z.enum(referencePool)).min(1).max(2):z.array(z.string()).max(0);
   const requiredWaterTransform=!a&&job.requiresWaterTransformation&&generationIndex===0;
   const boundary=requiredRole==='people'?z.enum(['silhouette','residue']):!a&&requiredRole==='environment'?z.literal('field'):z.enum(['silhouette','residue','field']);
   const plannedPlacement=!a&&requiredRole==='environment'?placement.extend({width:z.number().min(.9).max(1.4)}):placement;
