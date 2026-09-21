@@ -11,6 +11,13 @@ import {creationInput,advanceSchema,advanceFor,validateAdvance} from './plan.js'
 import {projectContext} from './context.js';
 import {transformImage} from './transforms.js';
 import {fillComposition} from './coverage.js';
+
+export function compositionWarnings(coverage,count){
+ const warnings=[];
+ if(coverage.distinctVisible!==count)warnings.push(`${coverage.distinctVisible} of ${count} source images remain visibly represented in the final collage.`);
+ if(coverage.coverage<.995)warnings.push(`Canvas coverage is ${(coverage.coverage*100).toFixed(1)}%; the completed image is shown with the remaining open area.`);
+ return warnings;
+}
 import {observationSchema,critiqueSchema,normalizeObservations} from './direction.js';
 
 export const normalizedBox=z.tuple([z.number().min(0).max(1000),z.number().min(0).max(1000),z.number().min(0).max(1000),z.number().min(0).max(1000)]).transform(box=>box.some(v=>v>1)?box.map(v=>v/1000):box).refine(b=>b[2]>b[0]&&b[3]>b[1],'Box must have positive area');
@@ -174,8 +181,7 @@ Avoid unsupported claims: ${research.mustNotInfer.join('; ')}`;
   if(critique.revise){layout=critique.layout;const chosen=new Set(layout.layers.map(l=>l.assetId));if(materials.some(m=>!chosen.has(m.key)))throw new Error('The review omitted a required distinct image.');project=projectSchema.parse(assemble(plan,materials,job.prompt,layout));}
   job.coverage=await fillComposition(store,project,materials,job.count);job.finalLayout=layout;job.project=project;
   job.previewUrl=await renderCollage(store,project,job.id);
-  if(job.coverage.distinctVisible!==job.count)throw new Error('Some sources are hidden by other layers. The draft was retained for inspection, but not published as a completed collage.');
-  if(job.coverage.coverage<.995)throw new Error(`Only ${(job.coverage.coverage*100).toFixed(1)}% of the canvas is filled. The draft was retained rather than publishing visible empty space; no additional paid calls were made.`);
+  job.warnings.push(...compositionWarnings(job.coverage,job.count));
   validateLayerPermissions(project,store.state.assets);
   await this.step(job,'Saving',98);
   job.outputUrl=job.previewUrl;job.outputSize=[2400,1500];

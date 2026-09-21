@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
-import {CreationPipeline,normalizedBox} from '../server/pipeline.js';
+import {CreationPipeline,compositionWarnings,normalizedBox} from '../server/pipeline.js';
 import {normalizeObservations} from '../server/direction.js';
 import {creationInput,validateAdvance} from '../server/plan.js';
 import {createStore} from '../server/store.js';
@@ -48,6 +48,11 @@ function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p}={
  };
 }
 const input=extra=>creationInput.parse({prompt:'Water, surfaces and a gathering',requestId:randomUUID(),...extra});
+
+test('coverage and occlusion checks warn without withholding a rendered image',()=>{
+ const warnings=compositionWarnings({coverage:.982,distinctVisible:5},6);
+ assert.deepEqual(warnings,['5 of 6 source images remain visibly represented in the final collage.','Canvas coverage is 98.2%; the completed image is shown with the remaining open area.']);
+});
 
 test('6–20 means distinct inputs; invalid counts and duplicate sources are rejected',()=>{
  for(const count of [0,5,21])assert.throws(()=>input({count}));
