@@ -1,0 +1,4 @@
+# Installed in .venv; inference runs locally, without API charges.
+ultralytics==8.4.144
+numpy>=2,<3
+Pillow>=11
