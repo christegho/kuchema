@@ -85,6 +85,43 @@ export class CreationPipeline {
   if(!result.cuts.length)job.warnings.push(`No usable SAM mask for “${asset.title}”. It was not replaced with an arbitrary rectangular crop.`);
   await fs.rm(temp,{recursive:true,force:true});return materials;
  }
+ async retryPart(jobId,key){
+  if(this.active)throw Object.assign(new Error('Another collage operation is already running.'),{status:409});
+  const job=this.store.state.creations.find(j=>j.id===jobId),part=job?.failedParts?.find(p=>p.key===key);
+  if(!job||!part)throw Object.assign(new Error('Failed part not found.'),{status:404});
+  if(!job.project)throw Object.assign(new Error('This earlier attempt has no partial study to update.'),{status:409});
+  const working=job.workingImages?.find(w=>w.key===key),asset=working&&this.store.state.assets.find(a=>a.id===working.assetId),item=job.plan?.images?.find(i=>i.key===key);
+  if(!asset||!item)throw Object.assign(new Error('The source material for this part is unavailable.'),{status:409});
+  this.active=job.id;part.status='retrying';await this.store.persist();
+  try{
+   const previous=job.observations?.find(o=>o.id===asset.id)?.regions?.[0],human=item.role==='people';
+   const region=human
+    ?{key:`retry-${key}`,label:/group|people|gathering|crowd|family|youth/i.test(item.segment)?'complete group of people':'complete person',box:[0,0,1,1],point:[.5,.5],reason:`Retry the complete figure for ${item.label}`,boundary:item.boundary}
+    :{...(previous||{key:`retry-${key}`,label:item.segment,box:[0,0,1,1],point:[.5,.5],reason:item.reason}),boundary:item.boundary};
+   const cuts=await this.cut(job,asset,[region],item.reason,false);
+   if(!cuts.length)throw Object.assign(new Error(`SAM still could not extract “${item.label}”. The partial study remains available.`),{status:422});
+   const material={...cuts[0],key,rootId:working.rootId},stored={...cuts[0],key,rootId:working.rootId,assetId:cuts[0].asset.id};delete stored.asset;
+   job.materials=[...(job.materials||[]).filter(m=>m.key!==key),stored];
+   const oneLayout={background:job.project.background,rationale:item.reason,negativeSpace:'',layers:[{assetId:key,name:item.label,...item.placement,opacity:1,reason:item.reason}]};
+   const layer=assemble(job.plan,[material],job.prompt,oneLayout).layers[0],order=job.plan.layerOrder||job.plan.images.map(i=>i.key);
+   const rootKey=l=>job.materials.find(m=>m.assetId===l.assetId)?.key;
+   const layers=[...job.project.layers,layer].sort((a,b)=>order.indexOf(rootKey(a))-order.indexOf(rootKey(b)));
+   job.project={...job.project,layers};
+   const materials=job.materials.map(m=>({...m,asset:this.store.state.assets.find(a=>a.id===m.assetId)})).filter(m=>m.asset);
+   job.coverage=await fillComposition(this.store,job.project,materials,materials.length);
+   job.previewUrl=await renderCollage(this.store,job.project,job.id);job.outputUrl=job.previewUrl;
+   part.status='resolved';part.resolvedAt=new Date().toISOString();delete part.error;
+   job.warnings=job.warnings.filter(w=>!w.includes(`“${item.label}”`)&&!/^Canvas coverage|^\d+ of \d+ source images/.test(w));
+   job.warnings.push(...compositionWarnings(job.coverage,materials.length));
+   this.store.state.project=job.project;await this.store.persist();return job;
+  }catch(e){part.status='failed';part.error=e.message;await this.store.persist();throw e;}
+  finally{this.active=null;}
+ }
+ async ignorePart(jobId,key){
+  const job=this.store.state.creations.find(j=>j.id===jobId),part=job?.failedParts?.find(p=>p.key===key);
+  if(!job||!part)throw Object.assign(new Error('Failed part not found.'),{status:404});
+  part.status='ignored';part.resolvedAt=new Date().toISOString();await this.store.persist();return job;
+ }
  async run(job){
   const store=this.store,budget=new Budget(job,()=>store.persist());
   await this.step(job,'Checking images and budget',2);
@@ -168,29 +205,31 @@ Avoid unsupported claims: ${research.mustNotInfer.join('; ')}`;
   await this.step(job,'Locating subjects after transformation',60);
   const toCut=working.filter(w=>w.item.boundary!=='whole');
   const observations=toCut.length?await this.observe(job,budget,pricing,toCut.map(w=>w.asset),'Transformed image grounding',toCut.map(w=>({id:w.asset.id,segment:w.item.segment,reason:w.item.reason}))):[];job.observations=observations;
-  const materials=[];
+  const materials=[];job.failedParts=[];
   for(const w of working){
    await this.step(job,`Cutting ${w.item.label}`,68+materials.length/job.count*12);
    const regions=(observations.find(o=>o.id===w.asset.id)?.regions||[]).slice(0,1).map(r=>({...r,boundary:w.item.boundary}));
    const cuts=await this.cut(job,w.asset,regions,w.item.reason,w.item.boundary==='whole');
-   if(!cuts.length)throw new Error(`SAM could not extract “${w.item.label}”. The study is incomplete; no arbitrary replacement crop was used.`);
+   if(!cuts.length){job.failedParts.push({key:w.item.key,label:w.item.label,assetId:w.asset.id,rootId:w.rootId,role:w.item.role,status:'failed',error:'SAM did not return a usable mask.'});job.warnings.push(`“${w.item.label}” could not be cut and is absent from this partial study.`);continue;}
    materials.push({...cuts[0],key:w.item.key,rootId:w.rootId});
   }
+  if(!materials.length)throw new Error('SAM could not extract any usable material, so there is no study to display.');
   job.materials=materials.map(({asset,...m})=>({...m,assetId:asset.id}));
   const sheet=await materialSheet(store,materials,randomUUID());job.materialSheetUrl=sheet.url;
-  let layout={background:plan.background,rationale:plan.rationale,negativeSpace:'No visible empty canvas; irregular source material overlaps across every edge.',layers:(plan.layerOrder||plan.images.map(i=>i.key)).map(key=>plan.images.find(i=>i.key===key)).map(item=>({assetId:item.key,name:item.label,...item.placement,opacity:1,reason:item.reason}))};
+  const materialKeys=new Set(materials.map(m=>m.key));
+  let layout={background:plan.background,rationale:plan.rationale,negativeSpace:'No visible empty canvas; irregular source material overlaps across every edge.',layers:(plan.layerOrder||plan.images.map(i=>i.key)).filter(key=>materialKeys.has(key)).map(key=>plan.images.find(i=>i.key===key)).map(item=>({assetId:item.key,name:item.label,...item.placement,opacity:1,reason:item.reason}))};
   let project=projectSchema.parse(assemble(plan,materials,job.prompt,layout));
-  job.initialLayout=layout;job.initialCoverage=await fillComposition(store,project,materials,job.count);
+  job.initialLayout=layout;job.initialCoverage=await fillComposition(store,project,materials,materials.length);
   const draftId=randomUUID();job.draftUrl=await renderCollage(store,project,draftId);await store.persist();
   await this.step(job,'Reviewing the assembled collage',88);
   const reviewed=await this.chat(job,budget,pricing,'planner','Collage critique',
-   `Review the draft and actual cutouts. Return one complete corrected layout if needed. Keep ALL ${job.count} distinct images visible and legible. Do not remove sources, add unlisted material, or change the selected transformations. Archive layers must contain environmental material only. Keep each generated human head connected to its body and do not cover a person's head with another layer. At least 99.5% of the canvas must be covered by actual image pixels. Irregular field crops must overlap as a base that reaches every edge; silhouettes sit above. Never use square or rectangular picture tiles, white gaps, blank margins or small floating islands. Preserve source resolution and do not solve a gap by excessively enlarging a small fragment. Width may reach 1.4 times the canvas when the material has enough pixels. x,y are normalized centers, width is canvas-width fraction and height preserves cut aspect ratio. List back to front; opacity must be 1 for dense base fields. Use only the listed keys. Correct coverage, occlusion and accidental collisions while preserving the advance plan's relationships. negativeSpace must confirm that no empty canvas remains.`,
+   `Review the draft and actual cutouts. Return one complete corrected layout if needed. Keep ALL ${materials.length} successfully cut images visible and legible. The failed keys ${job.failedParts.map(p=>p.key).join(', ')||'none'} are unavailable and must not appear. Do not remove successful sources, add unlisted material, or change the selected transformations. Archive layers must contain environmental material only. Keep each generated human head connected to its body and do not cover a person's head with another layer. At least 99.5% of the canvas must be covered by actual image pixels. Irregular field crops must overlap as a base that reaches every edge; silhouettes sit above. Never use square or rectangular picture tiles, white gaps, blank margins or small floating islands. Preserve source resolution and do not solve a gap by excessively enlarging a small fragment. Width may reach 1.4 times the canvas when the material has enough pixels. x,y are normalized centers, width is canvas-width fraction and height preserves cut aspect ratio. List back to front; opacity must be 1 for dense base fields. Use only the listed keys. Correct coverage, occlusion and accidental collisions while preserving the advance plan's relationships. negativeSpace must confirm that no empty canvas remains.`,
    [{type:'text',text:JSON.stringify({request:job.prompt,direction:plan,currentLayout:layout,renderedLayers:project.layers,coverage:job.initialCoverage,materials:materials.map(m=>({key:m.key,width:m.asset.width,height:m.asset.height,rootId:m.rootId,boundary:m.asset.derived?.boundary,reason:m.reason}))})},{type:'image_url',image_url:{url:sheet.data}},{type:'image_url',image_url:{url:await referenceData(store,{id:draftId})}}],false,critiqueSchema);
   const critique=critiqueSchema.parse(parseJsonResponse(reviewed));job.critique=critique;
-  if(critique.revise){layout=critique.layout;const chosen=new Set(layout.layers.map(l=>l.assetId));if(materials.some(m=>!chosen.has(m.key)))throw new Error('The review omitted a required distinct image.');project=projectSchema.parse(assemble(plan,materials,job.prompt,layout));}
-  job.coverage=await fillComposition(store,project,materials,job.count);job.finalLayout=layout;job.project=project;
+  if(critique.revise){layout={...critique.layout,layers:critique.layout.layers.filter(l=>materialKeys.has(l.assetId))};const chosen=new Set(layout.layers.map(l=>l.assetId));if(materials.some(m=>!chosen.has(m.key)))throw new Error('The review omitted a required distinct image.');project=projectSchema.parse(assemble(plan,materials,job.prompt,layout));}
+  job.coverage=await fillComposition(store,project,materials,materials.length);job.finalLayout=layout;job.project=project;
   job.previewUrl=await renderCollage(store,project,job.id);
-  job.warnings.push(...compositionWarnings(job.coverage,job.count));
+  job.warnings.push(...compositionWarnings(job.coverage,materials.length));
   validateLayerPermissions(project,store.state.assets);
   await this.step(job,'Saving',98);
   job.outputUrl=job.previewUrl;job.outputSize=[2400,1500];

@@ -71,3 +71,12 @@ test('brief-derived prompts are returned and an edited system prompt persists',a
   const reopened=await request(app).get('/api/studio').expect(200);
   assert.equal(reopened.body.systemPrompt,store.state.systemPrompt);
 });
+test('failed collage parts expose retry and ignore actions',async t=>{
+  const {store}=await fixture(t),calls=[];
+  const job={id:'study-1',failedParts:[{key:'F07',status:'failed'}]};store.state.creations=[job];
+  const pipeline={status:async()=>({ready:true,activeId:null,maxCost:1}),vision:{close(){}},retryPart:async(id,key)=>{calls.push(['retry',id,key]);return job;},ignorePart:async(id,key)=>{calls.push(['ignore',id,key]);return job;}};
+  const app=createApp(store,{pipeline});
+  await request(app).post('/api/creations/study-1/failed-parts/F07/retry').expect(200);
+  await request(app).post('/api/creations/study-1/failed-parts/F07/ignore').expect(200);
+  assert.deepEqual(calls,[['retry','study-1','F07'],['ignore','study-1','F07']]);
+});

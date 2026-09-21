@@ -30,3 +30,4 @@ input[type=checkbox]{accent-color:#586650}
 .context-editor{display:flex;flex-direction:column;gap:25px}
 .context-editor textarea{border-color:#cbc8bd;background:#f3f0e8;line-height:1.55}
 .context-editor .text-link{align-self:flex-start;margin-top:-15px;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.failed-part{margin:10px 0 14px}.failed-part p{margin:0 0 5px}.failed-part button{font-size:11px;text-decoration:underline;text-underline-offset:3px;margin-right:15px}

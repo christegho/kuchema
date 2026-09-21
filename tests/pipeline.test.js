@@ -107,6 +107,15 @@ test('local person detection keeps that archive image context-only and generates
  assert.ok(peopleCall);assert.equal(peopleCall.b.input_references.length,1);assert.match(peopleCall.b.prompt,/primary visual evidence/i);
  const peopleAsset=store.state.assets.find(a=>a.generation?.referenceIds.includes(humanId));assert.ok(peopleAsset);assert.equal(peopleAsset.generation.referenceIds[0],humanId);
 });
+test('a failed SAM cut still publishes a partial study and can retry only that local cut',async t=>{
+ const store=await fixture(t,6);let failOne=true,failedPath='';
+ const vision={...fakeVision,request:async r=>{if(r.action==='segment'&&failOne){failOne=false;failedPath=r.path;return {cuts:[],detections:[]};}return fakeVision.request(r);}};
+ const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.ok(job.outputUrl);assert.equal(job.failedParts.length,1);assert.equal(job.project.layers.length,5);assert.match(job.warnings.join(' '),/absent from this partial study/);
+ const part=job.failedParts[0];assert.equal(job.workingImages.find(w=>w.key===part.key).assetId,path.basename(failedPath,'.png'));
+ const retried=await pipeline.retryPart(job.id,part.key);
+ assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);assert.ok(retried.outputUrl);
+});
 test('people references prioritize permitted human context and deduplicate planner choices',()=>{
  const environmental={id:'land',allowReference:true},humanA={id:'person-a',allowReference:true},humanB={id:'person-b',allowReference:true};
  const item={role:'people',referenceIds:['land','person-b']};

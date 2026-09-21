@@ -99,6 +99,12 @@ export function createApp(store, options = {}) {
     if(['queued','running'].includes(job.status)){job.cancelRequested=true;job.status='cancelling';await store.persist();}
     res.json(job);
   });
+  app.post('/api/creations/:id/failed-parts/:key/retry', async (req,res) => {
+    res.json(await pipeline.retryPart(req.params.id,req.params.key));
+  });
+  app.post('/api/creations/:id/failed-parts/:key/ignore', async (req,res) => {
+    res.json(await pipeline.ignorePart(req.params.id,req.params.key));
+  });
   app.get('/api/creations/:id/provenance', (req,res) => {
     const job=(store.state.creations||[]).find(j=>j.id===req.params.id);
     if(!job)return res.status(404).json({error:'Creation not found.'});
