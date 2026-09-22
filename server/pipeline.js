@@ -207,6 +207,7 @@ Avoid unsupported claims: ${research.mustNotInfer.join('; ')}`;
   await this.step(job,'Locating subjects after transformation',60);
   const toCut=working.filter(w=>w.item.boundary!=='whole');
   const observations=toCut.length?await this.observe(job,budget,pricing,toCut.map(w=>w.asset),'Transformed image grounding',toCut.map(w=>({id:w.asset.id,segment:w.item.segment,reason:w.item.reason}))):[];job.observations=observations;
+  job.warnings.push(...observations.flatMap(o=>o.geometryWarnings||[]));
   const materials=[];job.failedParts=[];
   for(const w of working){
    await this.step(job,`Cutting ${w.item.label}`,68+materials.length/job.count*12);

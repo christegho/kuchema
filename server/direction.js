@@ -13,9 +13,9 @@ export function normalizeObservations(value,assets){
  const data=observationSchema.parse(value),ids=new Set();
  for(const item of data.images){
   if(!assets.some(a=>a.id===item.id)||ids.has(item.id))throw new Error('The visual reading returned an unknown or duplicate image ID.');ids.add(item.id);
-  const keys=new Set(),asset=assets.find(a=>a.id===item.id);
+  const keys=new Set(),asset=assets.find(a=>a.id===item.id),validRegions=[];item.geometryWarnings=[];
   for(const region of item.regions){
-   if(keys.has(region.key))throw new Error('The visual reading returned duplicate region keys.');keys.add(region.key);
+   if(keys.has(region.key)){item.geometryWarnings.push(`Skipped duplicate region “${region.label}”.`);continue;}keys.add(region.key);
    const rawBox=region.box,rawPoint=region.point,raw=[...rawBox,...rawPoint];
    // Resolve a common provider error using the dimensions of the image supplied.
    // Small originals are often reported in true pixels; large images and values
@@ -28,11 +28,17 @@ export function normalizeObservations(value,assets){
     ? values.map((v,i)=>v/(i%2===0?asset.width:asset.height))
     : values.map(v=>v>1?v/1000:v);
    const b=normalize(rawBox),p=normalize(rawPoint);
-   if(b.some(v=>v<0||v>1)||p.some(v=>v<0||v>1))throw new Error('The visual reading returned coordinates outside its declared coordinate space.');
+   if(b.some(v=>v<0||v>1)){item.geometryWarnings.push(`Skipped “${region.label}” because its box was outside the image.`);continue;}
    region.coordinateSpaceResolved=resolved;
-   if(b[2]<=b[0]||b[3]<=b[1]||p[0]<b[0]||p[0]>b[2]||p[1]<b[1]||p[1]>b[3])throw new Error('A requested segmentation point lies outside its region.');
+   if(b[2]<=b[0]||b[3]<=b[1]){item.geometryWarnings.push(`Skipped “${region.label}” because its box had no usable area.`);continue;}
+   if(p.some(v=>v<0||v>1)||p[0]<b[0]||p[0]>b[2]||p[1]<b[1]||p[1]>b[3]){
+    p[0]=(b[0]+b[2])/2;p[1]=(b[1]+b[3])/2;region.pointAdjusted=true;
+    item.geometryWarnings.push(`Adjusted the segmentation point for “${region.label}” to the centre of its region.`);
+   }
    region.box=b;region.point=p;
+   validRegions.push(region);
   }
+  item.regions=validRegions;
  }
  return data.images;
 }

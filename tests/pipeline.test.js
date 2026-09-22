@@ -28,7 +28,7 @@ function direction(archive,job,generatedCount,referenceArchive=archive){
   return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete fictional group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences&&referenceArchive[0]?[referenceArchive[0].id]:[],role,boundary:role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&job.requiresWaterTransformation&&generationIndex===0?'water-flow':generated&&job.transformations?'misregistration':'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:.5,y:.5,width:1,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
  })};
 }
-function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p}={}){
+function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
  let plan;return async(endpoint,body)=>{
   onBody(endpoint,body);
   if(endpoint==='images')return {data:[{b64_json:(await sharp({create:{width:1600,height:1000,channels:3,background:{r:100+store.state.assets.length,g:150,b:200}}}).png().toBuffer()).toString('base64')}],usage:{cost:.04}};
@@ -41,7 +41,7 @@ function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p}={
   }
   if(stage==='transformed_image_grounding'){
    const targets=JSON.parse(body.messages[1].content[0].text).targets;
-   return json({images:targets.map(t=>({id:t.id,description:'A material surface',coordinateSpace:'normalized_1000',regions:[region]}))});
+   return json(mutateObservations({images:targets.map(t=>({id:t.id,description:'A material surface',coordinateSpace:'normalized_1000',regions:[region]}))}));
   }
   if(stage==='collage_critique')return json({assessment:'Dense, visible sources',issues:[],revise:false,layout:{background:plan.background,rationale:plan.rationale,negativeSpace:'Small seams',layers:plan.images.map(i=>({assetId:i.key,name:i.label,...i.placement,opacity:1,reason:i.reason}))}});
   return json({summary:'Water follows terrain',findings:[{claim:'Flow',url:'https://example.org/water'}],uncertain:[],mustNotInfer:[]},noCitations?[]:[{type:'url_citation',url_citation:{url:'https://example.org/water'}}]);
@@ -64,7 +64,7 @@ test('6–20 means distinct inputs; invalid counts and duplicate sources are rej
  const recolourPlan=direction(a.slice(0,5),{...j,recolouring:false},1);recolourPlan.images[5].transform.type='recolour';
  assert.throws(()=>validateAdvance(recolourPlan,a.slice(0,5),{...j,recolouring:false},1),/Recolouring is switched off/);
 });
-test('Qwen boxes and points reject coordinates outside the requested subject',()=>{
+test('Qwen coordinate systems normalize and invalid segmentation geometry recovers',()=>{
  assert.deepEqual(normalizedBox.parse([100,200,900,800]),[.1,.2,.9,.8]);assert.throws(()=>normalizedBox.parse([900,0,100,800]));
  assert.deepEqual(normalizeObservations({images:[{id:'a',description:'Surface',coordinateSpace:'normalized_1000',regions:[region]}]},[{id:'a',width:276,height:182}])[0].regions[0].point,[.5,.5]);
  const pixel=normalizeObservations({images:[{id:'a',description:'People',coordinateSpace:'pixels',regions:[{...region,box:[0,0,276,182],point:[138,91]}]}]},[{id:'a',width:276,height:182}])[0];
@@ -73,7 +73,10 @@ test('Qwen boxes and points reject coordinates outside the requested subject',()
  assert.deepEqual(mislabeled.regions[0].box,[.45,.27,.547,.547]);assert.equal(mislabeled.regions[0].coordinateSpaceResolved,'normalized_1000');
  const large=normalizeObservations({images:[{id:'a',description:'Plant',coordinateSpace:'pixels',regions:[{...region,box:[280,120,750,850],point:[515,485]}]}]},[{id:'a',width:2352,height:1570}])[0];
  assert.deepEqual(large.regions[0].box,[.28,.12,.75,.85]);
- assert.throws(()=>normalizeObservations({images:[{id:'a',description:'Surface',coordinateSpace:'normalized_1000',regions:[{...region,point:[999,999]}]}]},[{id:'a',width:276,height:182}]),/outside/);
+ const adjusted=normalizeObservations({images:[{id:'a',description:'Surface',coordinateSpace:'normalized_1000',regions:[{...region,point:[999,999]}]}]},[{id:'a',width:276,height:182}])[0];
+ assert.deepEqual(adjusted.regions[0].point,[.5,.5]);assert.equal(adjusted.regions[0].pointAdjusted,true);assert.match(adjusted.geometryWarnings[0],/Adjusted/);
+ const skipped=normalizeObservations({images:[{id:'a',description:'Surface',coordinateSpace:'normalized_1000',regions:[{...region,box:[900,900,100,100]}]}]},[{id:'a',width:276,height:182}])[0];
+ assert.equal(skipped.regions.length,0);assert.match(skipped.geometryWarnings[0],/Skipped/);
 });
 for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, transformed-image grounding, six visible distinct roots and full canvas`,async t=>{
  const store=await fixture(t,mode==='archive'?6:5),calls=[],segments=[];
@@ -115,6 +118,13 @@ test('a failed SAM cut still publishes a partial study and can retry only that l
  const part=job.failedParts[0];assert.equal(job.workingImages.find(w=>w.key===part.key).assetId,path.basename(failedPath,'.png'));
  const retried=await pipeline.retryPart(job.id,part.key);
  assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);assert.ok(retried.outputUrl);
+});
+test('out-of-region segmentation points are adjusted without aborting the study',async t=>{
+ const store=await fixture(t,6);
+ const mutateObservations=o=>({...o,images:o.images.map(image=>({...image,regions:image.regions.map(r=>({...r,point:[999,999]}))}))});
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{mutateObservations})});
+ const job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.ok(job.observations.every(o=>o.regions[0].pointAdjusted));assert.ok(job.warnings.some(w=>/Adjusted the segmentation point/.test(w)));
 });
 test('people references prioritize permitted human context and deduplicate planner choices',()=>{
  const environmental={id:'land',allowReference:true},humanA={id:'person-a',allowReference:true},humanB={id:'person-b',allowReference:true};
