@@ -103,7 +103,7 @@ test('local person detection keeps that archive image context-only and generates
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store,{onBody:(e,b)=>calls.push({e,b})})}),job=await pipeline.start(input({count:6}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,2);assert.ok(job.plan.images.some(i=>!i.sourceId&&i.role==='people'));
  assert.equal(job.project.layers.some(layer=>{const asset=store.state.assets.find(a=>a.id===layer.assetId);return (asset.rootId||asset.id)===humanId;}),false);
- const peopleCall=calls.find(c=>c.e==='images'&&c.b.prompt.includes('ROLE: people'));
+ const peopleCall=calls.find(c=>c.e==='images'&&c.b.prompt.startsWith('DOCUMENTARY PHOTOGRAPHIC SOURCE IMAGE'));
  assert.ok(peopleCall);assert.equal(peopleCall.b.input_references.length,1);assert.match(peopleCall.b.prompt,/primary visual evidence/i);
  const peopleAsset=store.state.assets.find(a=>a.generation?.referenceIds.includes(humanId));assert.ok(peopleAsset);assert.equal(peopleAsset.generation.referenceIds[0],humanId);
 });
@@ -121,6 +121,12 @@ test('people references prioritize permitted human context and deduplicate plann
  const item={role:'people',referenceIds:['land','person-b']};
  assert.deepEqual(selectGenerationReferences(item,[environmental,humanA,humanB],[humanA,humanB],2).map(a=>a.id),['person-b','person-a']);
  assert.deepEqual(selectGenerationReferences(item,[environmental,humanA,humanB],[humanA,humanB],2,false),[]);
+});
+test('people generation stops before paid calls when no archive person is permitted as a reference',async t=>{
+ const store=await fixture(t,6),humanId=store.state.assets[0].id;store.state.assets.forEach(a=>{a.allowReference=false;});let calls=0,priceChecks=0;
+ const vision={...fakeVision,request:async r=>r.action==='detect'&&r.path.endsWith(`${humanId}.png`)?{detections:[{label:'person',confidence:.9}],width:120,height:80}:fakeVision.request(r)};
+ const pipeline=new CreationPipeline(store,{vision,prices:async o=>{priceChecks++;return prices(o);},request:async()=>{calls++;}}),job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'failed');assert.match(job.error,/People generation requires.*AI generation reference/);assert.equal(priceChecks,0);assert.equal(calls,0);assert.equal(job.ledger.length,0);
 });
 test('unaffordable configurations and premium price uncertainty make zero paid calls',async t=>{
  const store=await fixture(t);let calls=0;
