@@ -2,6 +2,8 @@
 
 A local collage tool for *Kuchema: The Gathering*. React, Express, Sharp and a local YOLO/SAM worker. No accounts or collections. Deployment is deferred.
 
+[Development explorations, research and references](development-notes.md)
+
 ## Run
 
 ```sh
@@ -16,7 +18,7 @@ Open **http://127.0.0.1:3000**. Node 22+ and Python 3.10+ are required. The exis
 
 - **Archive**: upload images or choose a folder. Select images to constrain retrieval, or leave the selection empty. Open an image to edit captions and permissions for cropping, generation references and transformations.
 - **Context**: edit the project-wide system prompt and add contributor accounts, relationships, constraints and other text. The default system prompt and editable starting image prompt are derived from the creative sections of `brief.md`. The MOU's legal sections and private folder links are excluded from model context. Original documents remain unchanged.
-- **Options**: choose **6–20 distinct images**, whether archive pixels appear in the collage, generation references, pre-crop transformations, brief-led recolouring and image model. Archive images still inform the VLM when final archive inclusion is off. Multiple crops of one image do not count as separate images.
+- **Options**: choose **6–20 distinct images**, whether archive pixels or generated people appear in the collage, generation references, pre-crop transformations, brief-led recolouring and image model. **Include people** is on by default. Archive images still inform the VLM when final archive inclusion is off. Multiple crops of one image do not count as separate images.
 - Enter a prompt and create. **Studies** retains attempts and cost records. **How this image was made** contains the advance JSON plan, research, transformations, actual cutouts, draft, review and coverage check.
 - **Edit** supports placement, rotation, opacity, polygon cuts and undo/redo. **Save image** exports a 2400 × 1500 PNG. **View** hides the interface; Escape restores it.
 

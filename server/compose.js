@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 
-const HUMAN_TERMS=/\b(person|people|woman|women|man|men|child|children|figure|figures|group|gathering|crowd|family|families|youth|portrait|face|faces)\b/i;
+const HUMAN_TERMS=/\b(person|people|woman|women|man|men|child|children|figure|figures|group|gathering|crowd|family|families|youth|portrait)\b/i;
 export const archiveHasPeople=asset=>HUMAN_TERMS.test([asset.title,asset.caption,asset.aiCaption,asset.tags].filter(Boolean).join(' '));
 export const MAX_WORK_UPSCALE=2;
 

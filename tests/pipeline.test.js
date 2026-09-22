@@ -128,6 +128,13 @@ test('people generation stops before paid calls when no archive person is permit
  const pipeline=new CreationPipeline(store,{vision,prices:async o=>{priceChecks++;return prices(o);},request:async()=>{calls++;}}),job=await pipeline.start(input({count:6}));await pipeline.running;
  assert.equal(job.status,'failed');assert.match(job.error,/People generation requires.*AI generation reference/);assert.equal(priceChecks,0);assert.equal(calls,0);assert.equal(job.ledger.length,0);
 });
+test('people can be excluded even when the archive contains people',async t=>{
+ const store=await fixture(t,6),humanId=store.state.assets[0].id;store.state.assets.forEach(a=>{a.allowReference=false;});const calls=[];
+ const vision={...fakeVision,request:async r=>r.action==='detect'&&r.path.endsWith(`${humanId}.png`)?{detections:[{label:'person',confidence:.9}],width:120,height:80}:fakeVision.request(r)};
+ const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})}),job=await pipeline.start(input({count:6,includePeople:false,useReferences:false}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.requiresGeneratedPeople,false);assert.equal(job.plan.images.some(i=>i.role==='people'),false);
+ assert.equal(calls.filter(c=>c.endpoint==='images').some(c=>c.body.prompt.startsWith('DOCUMENTARY PHOTOGRAPHIC SOURCE IMAGE')),false);
+});
 test('unaffordable configurations and premium price uncertainty make zero paid calls',async t=>{
  const store=await fixture(t);let calls=0;
  const pipeline=new CreationPipeline(store,{vision:fakeVision,prices:async()=>{throw new Error('Cannot bound the $1.00 limit');},request:async()=>{calls++;}});
@@ -175,4 +182,5 @@ test('retrieval prefers supplied locality and excludes derived/generated assets'
 test('people-bearing archive images are detected as context-only material',()=>{
  assert.equal(archiveHasPeople({title:'Gathering under a roof',caption:'People sit in a circle'}),true);
  assert.equal(archiveHasPeople({title:'Water, rock and a vertical fall',tags:'water, stone, vegetation'}),false);
+ assert.equal(archiveHasPeople({caption:'A waterfall plunges between sheer rock faces'}),false);
 });

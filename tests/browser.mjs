@@ -76,7 +76,7 @@ try{
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,true);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);
