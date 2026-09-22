@@ -119,6 +119,25 @@ test('a failed SAM cut still publishes a partial study and can retry only that l
  const retried=await pipeline.retryPart(job.id,part.key);
  assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);assert.ok(retried.outputUrl);
 });
+test('a local segmentation timeout retries once, then saves only that part for a later retry',async t=>{
+ const store=await fixture(t,6);let failedPath='',allowRetry=false,fallbackCalls=0;
+ const vision={...fakeVision,request:async r=>{
+  if(r.action==='segment'&&!allowRetry){failedPath||=r.path;if(r.path===failedPath){if(r.samImageSize===640)fallbackCalls++;throw new Error('Local segmentation timed out.');}}
+  return fakeVision.request(r);
+ }};
+ const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(fallbackCalls,1);assert.equal(job.failedParts.length,1);assert.equal(job.project.layers.length,5);assert.match(job.failedParts[0].error,/timed out/);
+ allowRetry=true;const retried=await pipeline.retryPart(job.id,job.failedParts[0].key);
+ assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);
+});
+test('a study with no successful local cuts remains resumable without paid calls',async t=>{
+ const store=await fixture(t,6);let allowRetry=false;
+ const vision={...fakeVision,request:async r=>r.action==='segment'&&!allowRetry?Promise.reject(new Error('Local segmentation timed out.')):fakeVision.request(r)};
+ const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,6);assert.match(job.stage,/Waiting for local retries/);
+ const paidCalls=job.ledger.length;allowRetry=true;const retried=await pipeline.retryPart(job.id,job.failedParts[0].key);
+ assert.ok(retried.project);assert.equal(retried.project.layers.length,1);assert.equal(retried.ledger.length,paidCalls);assert.equal(retried.failedParts[0].status,'resolved');
+});
 test('out-of-region segmentation points are adjusted without aborting the study',async t=>{
  const store=await fixture(t,6);
  const mutateObservations=o=>({...o,images:o.images.map(image=>({...image,regions:image.regions.map(r=>({...r,point:[999,999]}))}))});

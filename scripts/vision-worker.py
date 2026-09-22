@@ -76,7 +76,7 @@ def process(req):
             prompts={'bboxes':[pixel_box]}
             point=subject.get('point')
             if point: prompts.update({'points':[[[int(point[0]*w),int(point[1]*h)]]],'labels':[[1]]})
-            result=segmenter.predict(source,device=device,verbose=False,imgsz=1024,**prompts)[0]
+            result=segmenter.predict(source,device=device,verbose=False,imgsz=int(req.get('samImageSize',1024)),**prompts)[0]
             if result.masks is None or not len(result.masks.data): continue
             mask_np=result.masks.data[0].cpu().numpy()
             mask=Image.fromarray((mask_np>0.5).astype(np.uint8)*255).resize((w,h),Image.Resampling.NEAREST)

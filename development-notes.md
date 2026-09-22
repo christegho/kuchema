@@ -56,7 +56,7 @@ The current process uses several bounded model calls rather than asking one imag
 6. Apply planned transformations to working copies before segmentation.
 7. Ask a vision-language model to locate the requested content, use YOLO for local people detection, and use SAM to make the cut.
 8. Assemble irregular layers on a 2400 × 1500 canvas, then run a visual critique and bounded layout revision.
-9. Publish the image even when a cut fails or a small uncovered area remains. Failed cuts can be retried individually or ignored.
+9. Publish the image even when a cut fails or a small uncovered area remains. A local timeout gets one smaller-size SAM retry, then becomes a saved failed part. Failed cuts can be retried individually or ignored without repeating paid calls. A study with no successful cuts remains resumable, and its first successful retry creates the canvas.
 
 The JSON plan is validated before generation. Six to twenty keys are required; archive source IDs cannot repeat; generated people cannot appear when **Include people** is off; people references must point to permitted people-bearing images; and the planned composition must include a substantial environmental field when needed to cover the canvas.
 

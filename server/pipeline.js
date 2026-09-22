@@ -37,7 +37,19 @@ const lookRules={prompt:'Let the artist prompt determine the visual language. Ma
 export class CreationPipeline {
  constructor(store,{request=routerRequest,prices=pricingPlan,vision=new VisionWorker()}={}){
   this.store=store;this.request=request;this.prices=prices;this.vision=vision;this.active=null;store.state.creations||=[];
-  for(const job of store.state.creations)if(['queued','running','cancelling'].includes(job.status)){job.status='interrupted';job.error='The server restarted. Paid calls were not retried; reservations remain recorded.';}
+  for(const job of store.state.creations){
+   if(job.workingImages?.length&&!job.observations?.length){
+    const saved=[...(job.decisions||[])].reverse().find(d=>d.step==='Transformed image grounding'),assets=job.workingImages.map(w=>store.state.assets.find(a=>a.id===w.assetId)).filter(Boolean);
+    try{if(saved&&assets.length)job.observations=normalizeObservations(parseJsonResponse({choices:[{message:{content:saved.response}}]}),assets);}catch{}
+   }
+   const locallyRecoverable=job.workingImages?.length&&job.observations?.length&&(job.status==='failed'||['queued','running','cancelling'].includes(job.status));
+   if(locallyRecoverable){
+    const completed=new Set((job.materials||[]).map(m=>m.key));
+    job.failedParts=job.workingImages.filter(w=>!completed.has(w.key)).map(w=>{const item=job.plan?.images?.find(i=>i.key===w.key);return {key:w.key,label:item?.label||w.key,assetId:w.assetId,rootId:w.rootId,role:item?.role||'material',status:'failed',error:'Local cutting was interrupted. Retry this part to continue from the saved material.'};});
+    job.status='complete';job.stage='Waiting for local retries';delete job.error;
+    job.warnings||=[];job.warnings.push('Local cutting was interrupted. Saved source material can be retried without repeating paid calls.');
+   }else if(['queued','running','cancelling'].includes(job.status)){job.status='interrupted';job.error='The server restarted. Paid calls were not retried; reservations remain recorded.';}
+  }
  }
  async status(){return {ready:await this.vision.available(),activeId:this.active,maxCost:MAX_COST};}
  async start(input){
@@ -76,7 +88,14 @@ export class CreationPipeline {
   if(!asset.allowCrop||keepWhole)materials.push({asset,label:asset.title,reason:asset.allowCrop?reason:'Contributor requires the whole source photograph.'});
   if(!asset.allowCrop||!regions.length){if(asset.kind==='generated'&&!regions.length)job.warnings.push(`The visual editor could not locate the requested subject in “${asset.title}”; it was excluded.`);return materials;}
   const temp=path.join(this.store.root,'work',job.id,asset.id);await fs.mkdir(temp,{recursive:true});
-  const result=await this.vision.request({action:'segment',path:path.join(this.store.root,'media',`${asset.id}.png`),outputDir:temp,regions,maxCuts:regions.length,directed:true});
+  const request={action:'segment',path:path.join(this.store.root,'media',`${asset.id}.png`),outputDir:temp,regions,maxCuts:regions.length,directed:true};
+  let result;
+  try{result=await this.vision.request(request);}
+  catch(e){
+   if(!/timed out|worker stopped/i.test(e.message))throw e;
+   job.warnings.push(`Local cutting for “${asset.title}” timed out; it was retried locally at a smaller working size.`);
+   result=await this.vision.request({...request,samImageSize:640,timeoutMs:180000});
+  }
   job.detections||=[];job.detections.push({assetId:asset.id,requestedRegions:regions,detections:result.detections});
   for(const cut of result.cuts){
    const fragment=await this.store.addImage(await fs.readFile(cut.file),`${cut.label}.png`,{kind:asset.kind,title:cut.label,caption:asset.caption,aiCaption:asset.aiCaption,locality:asset.locality,contributor:asset.contributor,date:asset.date,relationship:asset.relationship,restrictions:asset.restrictions,allowCrop:true,allowReference:asset.allowReference,rootId:asset.rootId||asset.id,derived:{parentId:asset.id,parent:sourceView(asset),boundary:regions.find(r=>r.key===cut.key)?.boundary,box:cut.box,point:cut.point,cropBox:cut.cropBox,detector:cut.detector,segmenter:cut.segmenter,coverage:cut.coverage,targetKey:cut.key,instanceBoxes:cut.instanceBoxes},...(asset.generation?{generation:asset.generation}:{})});
@@ -89,7 +108,6 @@ export class CreationPipeline {
   if(this.active)throw Object.assign(new Error('Another collage operation is already running.'),{status:409});
   const job=this.store.state.creations.find(j=>j.id===jobId),part=job?.failedParts?.find(p=>p.key===key);
   if(!job||!part)throw Object.assign(new Error('Failed part not found.'),{status:404});
-  if(!job.project)throw Object.assign(new Error('This earlier attempt has no partial study to update.'),{status:409});
   const working=job.workingImages?.find(w=>w.key===key),asset=working&&this.store.state.assets.find(a=>a.id===working.assetId),item=job.plan?.images?.find(i=>i.key===key);
   if(!asset||!item)throw Object.assign(new Error('The source material for this part is unavailable.'),{status:409});
   this.active=job.id;part.status='retrying';await this.store.persist();
@@ -102,15 +120,15 @@ export class CreationPipeline {
    if(!cuts.length)throw Object.assign(new Error(`SAM still could not extract “${item.label}”. The partial study remains available.`),{status:422});
    const material={...cuts[0],key,rootId:working.rootId},stored={...cuts[0],key,rootId:working.rootId,assetId:cuts[0].asset.id};delete stored.asset;
    job.materials=[...(job.materials||[]).filter(m=>m.key!==key),stored];
-   const oneLayout={background:job.project.background,rationale:item.reason,negativeSpace:'',layers:[{assetId:key,name:item.label,...item.placement,opacity:1,reason:item.reason}]};
+   const oneLayout={background:job.project?.background||job.plan.background,rationale:item.reason,negativeSpace:'',layers:[{assetId:key,name:item.label,...item.placement,opacity:1,reason:item.reason}]};
    const layer=assemble(job.plan,[material],job.prompt,oneLayout).layers[0],order=job.plan.layerOrder||job.plan.images.map(i=>i.key);
    const rootKey=l=>job.materials.find(m=>m.assetId===l.assetId)?.key;
-   const layers=[...job.project.layers,layer].sort((a,b)=>order.indexOf(rootKey(a))-order.indexOf(rootKey(b)));
-   job.project={...job.project,layers};
+   const layers=[...(job.project?.layers||[]).filter(l=>rootKey(l)!==key),layer].sort((a,b)=>order.indexOf(rootKey(a))-order.indexOf(rootKey(b)));
+   job.project=job.project?{...job.project,layers}:{...assemble(job.plan,[material],job.prompt,oneLayout),layers};
    const materials=job.materials.map(m=>({...m,asset:this.store.state.assets.find(a=>a.id===m.assetId)})).filter(m=>m.asset);
    job.coverage=await fillComposition(this.store,job.project,materials,materials.length);
    job.previewUrl=await renderCollage(this.store,job.project,job.id);job.outputUrl=job.previewUrl;
-   part.status='resolved';part.resolvedAt=new Date().toISOString();delete part.error;
+   part.status='resolved';part.resolvedAt=new Date().toISOString();delete part.error;job.status='complete';job.stage='Complete';delete job.error;
    job.warnings=job.warnings.filter(w=>!w.includes(`“${item.label}”`)&&!/^Canvas coverage|^\d+ of \d+ source images/.test(w));
    job.warnings.push(...compositionWarnings(job.coverage,materials.length));
    this.store.state.project=job.project;await this.store.persist();return job;
@@ -125,13 +143,13 @@ export class CreationPipeline {
  async run(job){
   const store=this.store,budget=new Budget(job,()=>store.persist());
   await this.step(job,'Checking images and budget',2);
-  const retrieved=retrieveArchive(store.state.assets,job.prompt,job.ids),contextArchive=retrieved.map(r=>r.asset),detectedPeople=new Set();
+  const retrieved=retrieveArchive(store.state.assets,job.prompt,job.ids),contextArchive=retrieved.map(r=>r.asset),detectedPeople=new Set(),unverifiedContext=new Set();
   for(const asset of contextArchive){
    if(archiveHasPeople(asset)){detectedPeople.add(asset.id);continue;}
-   const result=await this.vision.request({action:'detect',path:path.join(store.root,'media',`${asset.id}.png`)});
-   if(result.detections.some(d=>d.label==='person'&&d.confidence>=.2))detectedPeople.add(asset.id);
+   try{const result=await this.vision.request({action:'detect',path:path.join(store.root,'media',`${asset.id}.png`)});if(result.detections.some(d=>d.label==='person'&&d.confidence>=.2))detectedPeople.add(asset.id);}
+   catch(e){unverifiedContext.add(asset.id);job.warnings.push(`Local people detection could not inspect “${asset.title}”; it remains context-only and can be retried in a later study.`);}
   }
-  const archive=contextArchive.filter(a=>!detectedPeople.has(a.id)&&a.allowCrop);
+  const archive=contextArchive.filter(a=>!detectedPeople.has(a.id)&&!unverifiedContext.has(a.id)&&a.allowCrop);
   const humanContext=contextArchive.filter(a=>detectedPeople.has(a.id));
   const peopleRequested=job.includePeople&&humanContext.length>0;
   const minimumGenerated=peopleRequested?2:(job.transformations||job.generation==='always'||job.imageModel==='gpt-image'?1:0);
@@ -142,7 +160,7 @@ export class CreationPipeline {
   job.requiresWaterTransformation=job.transformations&&job.requiresGeneratedEnvironment;
   job.humanContextIds=humanContext.map(a=>a.id);
   job.archivePeopleExcluded=[...detectedPeople];
-  job.retrieval=retrieved.map(r=>({id:r.asset.id,score:r.score,contextOnly:detectedPeople.has(r.asset.id)||!r.asset.allowCrop}));
+  job.retrieval=retrieved.map(r=>({id:r.asset.id,score:r.score,contextOnly:detectedPeople.has(r.asset.id)||unverifiedContext.has(r.asset.id)||!r.asset.allowCrop}));
   const pricing=await this.prices({generatedCount,count:job.count,imageModel:job.imageModel});job.pricing=pricing;job.requestedMaterials=generatedCount;
   // Preflight every planned call before the first charge, including transformed-image grounding and review.
   if(pricing.total>MAX_COST)throw new Error('This configuration exceeds $1.00. No paid calls were made.');
@@ -212,12 +230,17 @@ Avoid unsupported claims: ${research.mustNotInfer.join('; ')}`;
   for(const w of working){
    await this.step(job,`Cutting ${w.item.label}`,68+materials.length/job.count*12);
    const regions=(observations.find(o=>o.id===w.asset.id)?.regions||[]).slice(0,1).map(r=>({...r,boundary:w.item.boundary}));
-   const cuts=await this.cut(job,w.asset,regions,w.item.reason,w.item.boundary==='whole');
-   if(!cuts.length){job.failedParts.push({key:w.item.key,label:w.item.label,assetId:w.asset.id,rootId:w.rootId,role:w.item.role,status:'failed',error:'SAM did not return a usable mask.'});job.warnings.push(`“${w.item.label}” could not be cut and is absent from this partial study.`);continue;}
+   let cuts=[],cutError='SAM did not return a usable mask.';
+   try{cuts=await this.cut(job,w.asset,regions,w.item.reason,w.item.boundary==='whole');}catch(e){cutError=e.message;job.warnings.push(`Local cutting failed for “${w.item.label}”; the part was saved for retry and the study continued.`);}
+   if(!cuts.length){job.failedParts.push({key:w.item.key,label:w.item.label,assetId:w.asset.id,rootId:w.rootId,role:w.item.role,status:'failed',error:cutError});job.warnings.push(`“${w.item.label}” could not be cut and is absent from this partial study.`);await store.persist();continue;}
    materials.push({...cuts[0],key:w.item.key,rootId:w.rootId});
   }
-  if(!materials.length)throw new Error('SAM could not extract any usable material, so there is no study to display.');
   job.materials=materials.map(({asset,...m})=>({...m,assetId:asset.id}));
+  if(!materials.length){
+   job.status='complete';job.stage='Waiting for local retries';job.progress=100;job.finishedAt=new Date().toISOString();
+   job.warnings.push('No local cut completed. The saved study can be resumed one part at a time without repeating paid calls.');
+   await store.persist();return;
+  }
   const sheet=await materialSheet(store,materials,randomUUID());job.materialSheetUrl=sheet.url;
   const materialKeys=new Set(materials.map(m=>m.key));
   let layout={background:plan.background,rationale:plan.rationale,negativeSpace:'No visible empty canvas; irregular source material overlaps across every edge.',layers:(plan.layerOrder||plan.images.map(i=>i.key)).filter(key=>materialKeys.has(key)).map(key=>plan.images.find(i=>i.key===key)).map(item=>({assetId:item.key,name:item.label,...item.placement,opacity:1,reason:item.reason}))};

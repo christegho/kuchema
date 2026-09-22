@@ -57,7 +57,7 @@ function Installation({initial}:{initial:Studio}){
       if(next.project&&action==='retry'){update(next.project);setEdited(false);setSaved(true);applied.current=next.id;}
     }catch(e){setMessage((e as Error).message);}finally{setBusy(false);}
   }
-  const failedControls=(j:Creation)=>j.failedParts?.filter(p=>p.status==='failed'||p.status==='retrying').map(p=><div className="failed-part" key={p.key}><p>{p.label} could not be cut.</p><button disabled={active||busy} onClick={()=>void resolvePart(j,p.key,'retry')}>{p.status==='retrying'?'Retrying…':'Retry part'}</button><button disabled={active||busy} onClick={()=>void resolvePart(j,p.key,'ignore')}>Ignore</button></div>);
+  const failedControls=(j:Creation)=>j.failedParts?.filter(p=>p.status==='failed'||p.status==='retrying').map(p=><div className="failed-part" key={p.key}><p>{p.label} could not be cut.{p.error&&<small>{p.error}</small>}</p><button disabled={active||busy} onClick={()=>void resolvePart(j,p.key,'retry')}>{p.status==='retrying'?'Retrying…':'Retry part'}</button><button disabled={active||busy} onClick={()=>void resolvePart(j,p.key,'ignore')}>Ignore</button></div>);
   async function create(){
     if(active||busy)return;if(prompt.trim().length<8){setMessage('Describe the image in a little more detail.');return;}
     setBusy(true);setMessage('');setEditing(false);setSelected(null);

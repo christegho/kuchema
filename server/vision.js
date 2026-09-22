@@ -22,7 +22,7 @@ export class VisionWorker {
       const failed=()=>{this.child=null;for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(new Error(`Segmentation worker stopped. ${errors.slice(-400)}`));}this.pending.clear();};
       this.child.on('error',failed);this.child.on('exit',failed);
     }
-    return new Promise((resolve,reject)=>{const id=randomUUID(),timer=setTimeout(()=>{this.pending.delete(id);this.child?.kill();reject(new Error('Local segmentation timed out. No additional API calls will be made.'));},300000);this.pending.set(id,{resolve,reject,timer});this.child.stdin.write(JSON.stringify({...body,id})+'\n');});
+    return new Promise((resolve,reject)=>{const id=randomUUID(),timeout=Math.max(30000,Math.min(Number(body.timeoutMs)||300000,300000)),timer=setTimeout(()=>{this.pending.delete(id);this.child?.kill();reject(new Error('Local segmentation timed out.'));},timeout);this.pending.set(id,{resolve,reject,timer});this.child.stdin.write(JSON.stringify({...body,id})+'\n');});
   }
   close(){this.child?.kill();}
 }
