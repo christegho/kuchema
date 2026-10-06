@@ -10,7 +10,12 @@ import {createStore} from '../server/store.js';
 import {createApp} from '../server/app.js';
 process.env.OPENROUTER_API_KEY='browser-test-never-sent';
 const dir=await fs.mkdtemp(path.join(os.tmpdir(),'situated-browser-'));
-const store=await createStore(dir);await store.importDirectory(path.resolve('images_test'),true);
+const store=await createStore(dir);
+// Synthetic fixtures keep the browser suite independent of private archive photos.
+for(const [i,title] of ['Water and rock','A path through the valley','Water at the pool','Gathering under a roof','A shared outdoor activity'].entries()){
+ const bytes=await sharp({create:{width:600,height:400,channels:3,background:{r:60+i*30,g:100,b:140}}}).png().toBuffer();
+ await store.addImage(bytes,`fixture-${i}.png`,{title});
+}
 const app=createApp(store);app.use(express.static(path.resolve('dist')));
 const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
 const url=`http://127.0.0.1:${server.address().port}`;
@@ -76,7 +81,7 @@ try{
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,true);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);

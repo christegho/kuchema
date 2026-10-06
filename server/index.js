@@ -5,7 +5,12 @@ import { createStore } from './store.js';
 import { createApp } from './app.js';
 
 const store = await createStore(process.env.DATA_DIR || './data');
-await store.importDirectory(path.resolve(process.env.ARCHIVE_DIR || './images_test'), !process.env.ARCHIVE_DIR || process.env.ARCHIVE_DIR === './images_test');
+// Migrate the old sample-directory setting as well as the default.
+const configuredArchive=process.env.ARCHIVE_DIR;
+const archiveDirectory=!configuredArchive||path.resolve(configuredArchive)===path.resolve('images_test')?'./archive':configuredArchive;
+const imported=await store.importOfficialArchive(archiveDirectory);
+console.log(`Official archive: ${imported.count} distinct images imported.`);
+for(const error of imported.errors)console.warn(`Archive import: ${error}`);
 const app = createApp(store);
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.resolve('dist')));

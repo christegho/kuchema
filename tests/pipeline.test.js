@@ -24,8 +24,8 @@ async function fixture(t,n=5){
 }
 function direction(archive,job,generatedCount,referenceArchive=archive){
  return {title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
-  const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?'environment':job.requiresGeneratedEnvironment&&generationIndex===0?'environment':job.requiresGeneratedPeople&&generationIndex===(job.requiresGeneratedEnvironment?1:0)?'people':'material';
-  return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete fictional group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences&&referenceArchive[0]?[referenceArchive[0].id]:[],role,boundary:role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&job.requiresWaterTransformation&&generationIndex===0?'water-flow':generated&&job.transformations?'misregistration':'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:.5,y:.5,width:1,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
+  const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):job.requiresGeneratedEnvironment&&generationIndex===0?'environment':'material';
+  return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&job.requiresWaterTransformation&&generationIndex===0?'water-flow':generated&&job.transformations?'misregistration':'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:.5,y:.5,width:1,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
  })};
 }
 function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
@@ -36,7 +36,7 @@ function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mu
   if(stage==='advance_collage_plan'){
    const data=JSON.parse(body.messages[1].content[0].text);
    assert.equal(Object.keys(data.sourceSlots).length,data.count-data.generatedCount);
-   Object.entries(data.sourceSlots).forEach(([key,a],i)=>{assert.equal(key,`F${String(i+1).padStart(2,'0')}`);assert.ok(data.archive.some(item=>item.id===a.id));assert.equal(data.humanContextIds.includes(a.id),false);});
+   Object.entries(data.sourceSlots).forEach(([key,a],i)=>{assert.equal(key,`F${String(i+1).padStart(2,'0')}`);assert.ok(data.archive.some(item=>item.id===a.id));});
    plan=mutatePlan(direction(Object.values(data.sourceSlots),data,data.generatedCount,data.archive));plan.layerOrder=[...plan.images].sort((a,b)=>Number(!b.sourceId&&b.role==='environment')-Number(!a.sourceId&&a.role==='environment')).map(i=>i.key);return json({...plan,images:Object.fromEntries(plan.images.map(i=>[i.key,i]))});
   }
   if(stage==='transformed_image_grounding'){
@@ -100,15 +100,15 @@ test('twenty originals retain nineteen archive roots plus one high-resolution tr
  const store=await fixture(t,20);const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store)});
  const job=await pipeline.start(input({count:20}));await pipeline.running;assert.equal(job.status,'complete',job.error);assert.equal(job.coverage.distinctVisible,20);assert.equal(job.requestedMaterials,1);
 });
-test('local person detection keeps that archive image context-only and generates the people layer',async t=>{
+test('local person detection assigns direct archive cutouts and never generates people',async t=>{
  const store=await fixture(t,6),humanId=store.state.assets[0].id,calls=[];
  const vision={...fakeVision,request:async r=>r.action==='detect'&&r.path.endsWith(`${humanId}.png`)?{detections:[{label:'person',confidence:.9}],width:120,height:80}:fakeVision.request(r)};
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store,{onBody:(e,b)=>calls.push({e,b})})}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,2);assert.ok(job.plan.images.some(i=>!i.sourceId&&i.role==='people'));
- assert.equal(job.project.layers.some(layer=>{const asset=store.state.assets.find(a=>a.id===layer.assetId);return (asset.rootId||asset.id)===humanId;}),false);
- const peopleCall=calls.find(c=>c.e==='images'&&c.b.prompt.startsWith('DOCUMENTARY PHOTOGRAPHIC SOURCE IMAGE'));
- assert.ok(peopleCall);assert.equal(peopleCall.b.input_references.length,1);assert.match(peopleCall.b.prompt,/primary visual evidence/i);
- const peopleAsset=store.state.assets.find(a=>a.generation?.referenceIds.includes(humanId));assert.ok(peopleAsset);assert.equal(peopleAsset.generation.referenceIds[0],humanId);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,1);
+ assert.ok(job.plan.images.some(i=>i.sourceId===humanId&&i.role==='people'));
+ assert.ok(job.materials.some(m=>m.rootId===humanId));
+ assert.equal(job.plan.images.some(i=>!i.sourceId&&i.role==='people'),false);
+ assert.ok(calls.filter(c=>c.e==='images').every(c=>/exclude all people/.test(c.b.prompt)));
 });
 test('a failed SAM cut still publishes a partial study and can retry only that local cut',async t=>{
  const store=await fixture(t,6);let failOne=true,failedPath='';
@@ -145,17 +145,16 @@ test('out-of-region segmentation points are adjusted without aborting the study'
  const job=await pipeline.start(input({count:6}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);assert.ok(job.observations.every(o=>o.regions[0].pointAdjusted));assert.ok(job.warnings.some(w=>/Adjusted the segmentation point/.test(w)));
 });
-test('people references prioritize permitted human context and deduplicate planner choices',()=>{
- const environmental={id:'land',allowReference:true},humanA={id:'person-a',allowReference:true},humanB={id:'person-b',allowReference:true};
- const item={role:'people',referenceIds:['land','person-b']};
- assert.deepEqual(selectGenerationReferences(item,[environmental,humanA,humanB],[humanA,humanB],2).map(a=>a.id),['person-b','person-a']);
- assert.deepEqual(selectGenerationReferences(item,[environmental,humanA,humanB],[humanA,humanB],2,false),[]);
+test('generation references exclude people and composition images even when reference permission is enabled',()=>{
+ const assets=[{id:'land',allowReference:true},{id:'human',allowReference:true},{id:'collage',allowReference:true,archive:{category:'composition'}}];
+ assert.deepEqual(selectGenerationReferences({role:'environment',referenceIds:['human','collage','land','land']},assets,[assets[1]],2).map(a=>a.id),['land']);
+ assert.throws(()=>selectGenerationReferences({role:'people',referenceIds:['human']},assets,[assets[1]],2),/never generated/);
 });
-test('people generation stops before paid calls when no archive person is permitted as a reference',async t=>{
- const store=await fixture(t,6),humanId=store.state.assets[0].id;store.state.assets.forEach(a=>{a.allowReference=false;});let calls=0,priceChecks=0;
+test('archive people can be cut without generation-reference permission',async t=>{
+ const store=await fixture(t,6),humanId=store.state.assets[0].id;store.state.assets.forEach(a=>{a.allowReference=false;});
  const vision={...fakeVision,request:async r=>r.action==='detect'&&r.path.endsWith(`${humanId}.png`)?{detections:[{label:'person',confidence:.9}],width:120,height:80}:fakeVision.request(r)};
- const pipeline=new CreationPipeline(store,{vision,prices:async o=>{priceChecks++;return prices(o);},request:async()=>{calls++;}}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'failed');assert.match(job.error,/People generation requires.*AI generation reference/);assert.equal(priceChecks,0);assert.equal(calls,0);assert.equal(job.ledger.length,0);
+ const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.ok(job.materials.some(m=>m.rootId===humanId));
 });
 test('people can be excluded even when the archive contains people',async t=>{
  const store=await fixture(t,6),humanId=store.state.assets[0].id;store.state.assets.forEach(a=>{a.allowReference=false;});const calls=[];
@@ -208,8 +207,64 @@ test('creative context excludes legal contract and private folder links',()=>{
 test('retrieval prefers supplied locality and excludes derived/generated assets',()=>{
  assert.deepEqual(retrieveArchive([{id:'a',kind:'source',title:'Water'},{id:'b',kind:'source',locality:'Water district'},{id:'c',kind:'generated',locality:'Water district'},{id:'d',kind:'source',derived:{}}],'Water').map(r=>r.asset.id),['b','a']);
 });
-test('people-bearing archive images are detected as context-only material',()=>{
+test('people-bearing archive images are recognized from metadata',()=>{
  assert.equal(archiveHasPeople({title:'Gathering under a roof',caption:'People sit in a circle'}),true);
  assert.equal(archiveHasPeople({title:'Water, rock and a vertical fall',tags:'water, stone, vegetation'}),false);
  assert.equal(archiveHasPeople({caption:'A waterfall plunges between sheer rock faces'}),false);
+});
+
+async function officialFixture(t){
+ const store=await fixture(t,28);
+ store.state.officialArchive={directory:'test archive'};
+ store.state.assets.forEach((a,i)=>{
+  const category=i<8?'people':i<16?'general':i<24?'water':i<27?'composition':null;
+  if(category)a.archive={active:true,category,sacred:category==='water',paths:[`${category}/${i}.png`]};
+  a.allowCrop=category==='people';a.allowReference=['general','water'].includes(category);
+ });
+ return store;
+}
+for(const count of [6,20])test(`official archive: ${count} components use random category references and original people pixels`,async t=>{
+ const store=await officialFixture(t),calls=[],segments=[];
+ const pipeline=new CreationPipeline(store,{prices,vision:{...fakeVision,request:async r=>{if(r.action==='segment')segments.push(r);return fakeVision.request(r);}},request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
+ const job=await pipeline.start(input({count}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);
+ assert.equal(job.archiveSelection.people.length,count===6?4:8);
+ assert.equal(job.archiveSelection.general.length,count===6?2:7);
+ assert.equal(job.archiveSelection.water.length,count===6?2:7);
+ assert.equal(job.archiveSelection.composition.length,1);
+ assert.equal(new Set(job.materials.map(m=>m.rootId)).size,count);
+ assert.deepEqual(job.plan.images.filter(i=>i.sourceId).map(i=>i.sourceId),job.archiveSelection.people);
+ assert.ok(job.plan.images.filter(i=>i.sourceId).every(i=>i.role==='people'&&i.transform.type==='none'));
+ assert.ok(segments.slice(0,job.archiveSelection.people.length).every(r=>r.regions.every(region=>/person|people/.test(region.label))));
+ const generations=store.state.assets.filter(a=>a.generation&&!a.derived);
+ const used=new Set(generations.flatMap(a=>a.generation.referenceIds));
+ assert.deepEqual([...used].sort(),[...job.archiveSelection.general,...job.archiveSelection.water].sort());
+ assert.ok(generations.every(a=>a.generation.referenceIds.length===2&&!a.generation.referenceIds.includes(job.compositionReferenceId)));
+ assert.ok(calls.filter(c=>c.endpoint==='images').every(c=>c.body.input_references.length===2&&/exclude all people/.test(c.body.prompt)));
+ const planner=calls.find(c=>c.body.response_format?.json_schema?.name==='advance_collage_plan');
+ assert.ok(planner.body.messages[1].content.some(c=>c.type==='text'&&c.text.includes('COMPOSITION REFERENCE ONLY')));
+ const saved=await createStore(store.root);assert.deepEqual(saved.state.creations[0].archiveSelection,job.archiveSelection);
+});
+test('official archive rejects missing categories and incompatible options before any paid call',async t=>{
+ const store=await officialFixture(t);let calls=0,priceChecks=0;
+ const pipeline=new CreationPipeline(store,{vision:fakeVision,prices:async o=>{priceChecks++;return prices(o);},request:async()=>{calls++;}});
+ for(const options of [{ids:store.state.assets.filter(a=>a.archive?.category!=='water').map(a=>a.id)},{useReferences:false},{includeArchive:false}]){
+  const job=await pipeline.start(input(options));await pipeline.running;
+  assert.equal(job.status,'failed');assert.match(job.error,/No paid calls/);
+ }
+ assert.equal(calls,0);assert.equal(priceChecks,0);
+});
+test('official archive checks provider reference support before research',async t=>{
+ const store=await officialFixture(t);let calls=0;
+ const pipeline=new CreationPipeline(store,{vision:fakeVision,prices:async o=>({...await prices(o),images:[{referenceLimit:1}]}),request:async()=>{calls++;}});
+ const job=await pipeline.start(input({}));await pipeline.running;
+ assert.equal(job.status,'failed');assert.match(job.error,/two safely priced image references/);assert.equal(calls,0);
+});
+test('planner cannot substitute generated people or change official reference pairs',async t=>{
+ const store=await officialFixture(t);let images=0;
+ for(const mutatePlan of [p=>{p.images.at(-1).role='people';return p;},p=>{p.images.at(-1).referenceIds=[p.images[0].sourceId];return p;}]){
+  const pipeline=new CreationPipeline(store,{vision:fakeVision,prices,request:requestDouble(store,{mutatePlan,onBody:e=>{if(e==='images')images++;}})});
+  const job=await pipeline.start(input({}));await pipeline.running;assert.equal(job.status,'failed');
+ }
+ assert.equal(images,0);
 });

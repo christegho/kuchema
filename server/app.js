@@ -33,7 +33,7 @@ export function createApp(store, options = {}) {
   app.get('/api/studio', async (_, res) => {
     const context=await projectContext();
     res.json({
-      assets:store.state.assets.map(publicAsset),project:store.state.project,
+      assets:store.state.assets.map(publicAsset),project:store.state.project,officialArchive:Boolean(store.state.officialArchive),
       creations:store.state.creations||[],pipeline:await pipeline.status(),
       context,contextText:store.state.contextText||'',systemPrompt:store.state.systemPrompt??context.systemPrompt,
       models:imageModels,aiConfigured:Boolean(process.env.OPENROUTER_API_KEY),

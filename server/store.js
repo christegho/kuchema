@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
+import {archiveCategory} from './archive.js';
 
 const demoCaptions = {
   'images.jpeg': ['Water, rock, a vertical fall', 'A narrow waterfall descends between rock faces into a dark pool. Vegetation grows among foreground rocks.', 'water, rock, vegetation'],
@@ -66,5 +67,36 @@ export async function createStore(directory) {
       } : {});
     }
   }
-  return { root, state, persist, addImage, importDirectory };
+  async function importOfficialArchive(dir) {
+    const archiveRoot=path.resolve(dir),files=[];
+    async function walk(folder) {
+      for(const entry of (await fs.readdir(folder,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){
+        if(entry.name.startsWith('.'))continue;
+        const filename=path.join(folder,entry.name);
+        if(entry.isDirectory())await walk(filename);
+        else if(entry.isFile()&&/\.(jpe?g|png|webp|avif|heic|tiff?)$/i.test(entry.name))files.push(filename);
+      }
+    }
+    await walk(archiveRoot);
+    const memberships=new Map(),errors=[];
+    for(const filename of files){
+      const relativePath=path.relative(archiveRoot,filename).split(path.sep).join('/'),category=archiveCategory(relativePath);
+      try{
+        const asset=await addImage(await fs.readFile(filename),filename);
+        const entries=memberships.get(asset.id)||[];entries.push({path:relativePath,category});memberships.set(asset.id,entries);
+      }catch(e){errors.push(`${relativePath}: ${e.message}`);}
+    }
+    for(const asset of state.assets){
+      const entries=memberships.get(asset.id);
+      if(!entries){if(asset.archive)asset.archive.active=false;continue;}
+      // A photograph present in several folders is one source; people always stay cutouts.
+      const category=['people','composition','water','general'].find(c=>entries.some(e=>e.category===c));
+      if(!asset.archive){asset.allowCrop=category==='people';asset.allowReference=['general','water'].includes(category);asset.allowTransform=false;}
+      asset.archive={active:true,category,paths:entries.map(e=>e.path),sacred:entries.some(e=>e.path.toLowerCase().includes('/sacred water sites/'))};
+    }
+    state.officialArchive={directory:archiveRoot,importedAt:new Date().toISOString(),errors};
+    await persist();
+    return {count:memberships.size,errors};
+  }
+  return { root, state, persist, addImage, importDirectory, importOfficialArchive };
 }
