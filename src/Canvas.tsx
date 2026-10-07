@@ -3,6 +3,7 @@ import { Stage, Layer as KLayer, Group, Image as KImage, Rect, Text, Transformer
 import Konva from 'konva';
 import type { Asset, Layer, Project } from './types';
 import { clamp } from './lib';
+import {canvasGround, DEFAULT_GROUND} from '../shared/ground.js';
 
 export type CanvasHandle = { exportPNG: () => string };
 type Props = { project:Project;assets:Asset[];selected:string|null;onSelect:(id:string|null)=>void;onChange:(id:string,change:Partial<Layer>)=>void;cutting:boolean;cutPoints:number[];onCutPoint:(x:number,y:number)=>void;showSources:boolean;editable?:boolean };
@@ -36,7 +37,7 @@ function Fragment({item,asset,selected,onSelect,onChange,cutting,onCutPoint,show
       draggable={editable&&!item.locked&&!cutting} onClick={onSelect} onTap={onSelect}
       onMouseDown={()=>onSelect()} onDragEnd={e=>onChange({x:clamp(e.target.x(),-3200,4800),y:clamp(e.target.y(),-2000,3000)})}
       onTransformEnd={()=>{const n=group.current!;const nw=clamp(n.width()*n.scaleX(),20,4800),nh=clamp(n.height()*n.scaleY(),20,3000);n.scale({x:1,y:1});onChange({x:clamp(n.x(),-3200,4800),y:clamp(n.y(),-2000,3000),width:nw,height:nh,rotation:n.rotation()});}}>
-      {item.kind==='gap'?<><Rect width={w} height={h} fill="#f5f5f2"/><Line points={[0,1,w,1]} stroke="#bbb" strokeWidth={.7}/><Text x={8} y={12} width={w-16} height={h-16} text={item.note||'An account remains unfilled.'} fontFamily="Arial" fontSize={11.33} lineHeight={1.3} fill="#666"/></>:
+      {item.kind==='gap'?<><Rect width={w} height={h} fill={DEFAULT_GROUND}/><Line points={[0,1,w,1]} stroke="#bbb" strokeWidth={.7}/><Text x={8} y={12} width={w-16} height={h-16} text={item.note||'An account remains unfilled.'} fontFamily="Arial" fontSize={11.33} lineHeight={1.3} fill="#d6c8a5"/></>:
       <Group clipFunc={clip}><KImage image={image} x={(w-imageW)/2} y={(h-imageH)/2} width={imageW} height={imageH} crop={noCrop?undefined:crop}/>{!image&&<Rect width={w} height={h} fill="#c4c4b7"/>}</Group>}
       {showSources&&<Group name="editor-only" listening={false}><Rect y={h-42} width={w} height={42} fill={item.kind==='generated'?'#c7b6ff':'#dded85'} opacity={.92}/><Text x={12} y={h-29} width={w-24} fontSize={16} fontFamily="monospace" text={`${item.kind==='generated'?'AI':item.kind==='gap'?'?':'SOURCE'} · ${asset?.contributor||'unattributed'}`} fill="#161616"/></Group>}
       {selected&&cutting&&<Rect width={w} height={h} fill="rgba(0,0,0,0.06)" onTap={e=>{e.cancelBubble=true;const p=group.current!.getRelativePointerPosition();if(p)onCutPoint(clamp(p.x/w,0,1),clamp(p.y/h,0,1));}} onClick={e=>{e.cancelBubble=true;const p=group.current!.getRelativePointerPosition();if(p)onCutPoint(clamp(p.x/w,0,1),clamp(p.y/h,0,1));}}/>}
@@ -57,7 +58,7 @@ export const CollageCanvas=forwardRef<CanvasHandle,Props>(function CollageCanvas
   const selectedLayer=project.layers.find(l=>l.id===selected);
   return <div className={`canvas-wrap ${cutting?'cutting':''}`} ref={container} aria-label="Editable collage canvas">
     <Stage ref={stage} width={width} height={width*1000/1600} scaleX={width/1600} scaleY={width/1600} onMouseDown={e=>{if(e.target===e.target.getStage()||e.target.name()==='paper')onSelect(null);}}>
-      <KLayer><Rect name="paper" width={1600} height={1000} fill={project.background}/>
+      <KLayer><Rect name="paper" width={1600} height={1000} fill={canvasGround(project.background)}/>
         {project.layers.map(l=><Fragment key={l.id} item={l} asset={assets.find(a=>a.id===l.assetId)} selected={l.id===selected} onSelect={()=>onSelect(l.id)} onChange={c=>onChange(l.id,c)} cutting={cutting&&l.id===selected} onCutPoint={onCutPoint} showSources={showSources} editable={editable}/>)}
         {cutting&&selectedLayer&&<Group name="editor-only" x={selectedLayer.x} y={selectedLayer.y} rotation={selectedLayer.rotation} listening={false}><Line points={cutPoints.map((v,i)=>v*(i%2?selectedLayer.height:selectedLayer.width))} stroke="#555" strokeWidth={4} closed={cutPoints.length>=6} fill="rgba(80,80,80,.1)"/>{Array.from({length:cutPoints.length/2},(_,i)=><Rect key={i} x={cutPoints[i*2]*selectedLayer.width-5} y={cutPoints[i*2+1]*selectedLayer.height-5} width={10} height={10} fill="#555"/>)}</Group>}
       </KLayer>

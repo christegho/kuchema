@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Asset, Layer, Project } from './types';
+import {DEFAULT_GROUND} from '../shared/ground.js';
 
 export async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(url, { ...options, headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...options.headers } });
@@ -40,7 +41,7 @@ export function arrange(assets: Asset[], strategy: Project['strategy']): Layer[]
   return layers;
 }
 export function initialProject(assets: Asset[]): Project {
-  return { title:'A fragmentary atlas',brief:'Follow the water, the ground, and the spaces where people gather. Let different perspectives coexist. Leave room for what these images cannot tell us.',strategy:'atlas',background:'#e7e5db',layers:arrange(assets,'atlas'),evidence:null };
+  return { title:'A fragmentary atlas',brief:'Follow the water, the ground, and the spaces where people gather. Let different perspectives coexist. Leave room for what these images cannot tell us.',strategy:'atlas',background:DEFAULT_GROUND,layers:arrange(assets,'atlas'),evidence:null };
 }
 export function useHistory(initial: Project) {
   const [project, setProject] = useState(initial);

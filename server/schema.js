@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {canvasGround} from '../shared/ground.js';
 
 export const metadataSchema = z.object({
   title: z.string().max(160), caption: z.string().max(3000), locality: z.string().max(200),
@@ -24,7 +25,7 @@ export const evidenceSchema = z.object({
 });
 export const projectSchema = z.object({
   title: z.string().max(160), brief: z.string().max(4000),
-  strategy: z.enum(['atlas', 'echoes', 'gaps']), background: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  strategy: z.enum(['atlas', 'echoes', 'gaps']), background: z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(canvasGround),
   layers: z.array(layerSchema).max(50), evidence: evidenceSchema.nullable(),
 }).refine(p => new Set(p.layers.map(l => l.id)).size === p.layers.length, { message: 'Each layer must have a unique ID.' });
 export const aiInput = z.object({
@@ -41,6 +42,11 @@ export function validateLayerPermissions(project, assets) {
     }
     const asset = assets.find(a => a.id === layer.assetId);
     if (!asset) throw invalid('A layer refers to a missing archive image.');
+    if(asset.kind==='source'){
+      const root=assets.find(a=>a.id===(asset.rootId||asset.id));
+      if(root?.archive&&root.archive.category!=='people')throw invalid('Only archive people may supply direct collage pixels; other archive images are references.');
+      if(root?.archive?.category==='people'&&!asset.derived?.segmenter&&layer.shape==='rectangle'&&layer.crop.zoom===1&&layer.crop.x===0&&layer.crop.y===0)throw invalid('People photographs must be cropped before being added to a collage.');
+    }
     if (layer.kind !== asset.kind) throw invalid('Layer source type must match its archive image.');
     if (!asset.allowCrop && (layer.shape !== 'rectangle' || layer.crop.zoom !== 1 || layer.crop.x !== 0 || layer.crop.y !== 0)) {
       throw invalid(`Cropping is disabled for ${asset.title}.`);

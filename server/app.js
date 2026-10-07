@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import { z } from 'zod';
 import { metadataSchema, projectSchema, validateLayerPermissions } from './schema.js';
+import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS} from './transforms.js';
 import { imageModels } from './ai.js';
 import { CreationPipeline } from './pipeline.js';
 import {creationInput} from './plan.js';
@@ -36,7 +37,7 @@ export function createApp(store, options = {}) {
       assets:store.state.assets.map(publicAsset),project:store.state.project,officialArchive:Boolean(store.state.officialArchive),
       creations:store.state.creations||[],pipeline:await pipeline.status(),
       context,contextText:store.state.contextText||'',systemPrompt:store.state.systemPrompt??context.systemPrompt,
-      models:imageModels,aiConfigured:Boolean(process.env.OPENROUTER_API_KEY),
+      models:imageModels,transformOptions:TRANSFORM_OPTIONS,defaultTransforms:DEFAULT_TRANSFORMS,aiConfigured:Boolean(process.env.OPENROUTER_API_KEY),
       textModel:TEXT_MODELS.vision,textModels:TEXT_MODELS,usage:store.state.usage,
     });
   });

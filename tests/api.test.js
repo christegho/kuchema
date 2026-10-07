@@ -7,6 +7,7 @@ import request from 'supertest';
 import sharp from 'sharp';
 import { createStore } from '../server/store.js';
 import { createApp } from '../server/app.js';
+import {DEFAULT_GROUND} from '../shared/ground.js';
 
 async function fixture(t) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'situated-test-'));
@@ -26,7 +27,7 @@ test('uploads are normalized, deduplicated, retained and reopened with saved lay
   assert.equal(second.body.assets[0].id,a.id);
   const p=project([layer(a)]);
   await request(app).put('/api/project').send(p).expect(200);
-  const reopened=await createStore(dir);assert.deepEqual(reopened.state.project,p);assert.equal(reopened.state.assets.length,1);
+  const reopened=await createStore(dir);assert.deepEqual(reopened.state.project,{...p,background:DEFAULT_GROUND});assert.equal(reopened.state.assets.length,1);
   await request(app).get(a.url).expect(200).expect('Content-Type',/image\/png/);
   const provenance=await request(app).get('/api/provenance').expect(200);
   assert.equal(provenance.body.project.layers[0].assetId,a.id);
@@ -79,4 +80,13 @@ test('failed collage parts expose retry and ignore actions',async t=>{
   await request(app).post('/api/creations/study-1/failed-parts/F07/retry').expect(200);
   await request(app).post('/api/creations/study-1/failed-parts/F07/ignore').expect(200);
   assert.deepEqual(calls,[['retry','study-1','F07'],['ignore','study-1','F07']]);
+});
+
+test('official archive photos cannot bypass people-only cropping through a manual project save',async t=>{
+ const {store,app,bytes}=await fixture(t);
+ const a=await store.addImage(bytes,'official.png',{archive:{active:true,category:'general'}});
+ await request(app).put('/api/project').send(project([layer(a)])).expect(400);
+ a.archive.category='people';
+ await request(app).put('/api/project').send(project([layer(a)])).expect(400);
+ await request(app).put('/api/project').send(project([{...layer(a),shape:'ellipse'}])).expect(200);
 });

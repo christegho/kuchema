@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {canvasGround} from '../shared/ground.js';
 
 const HUMAN_TERMS=/\b(person|people|woman|women|man|men|child|children|figure|figures|group|gathering|crowd|family|families|youth|portrait)\b/i;
 export const archiveHasPeople=asset=>HUMAN_TERMS.test([asset.title,asset.caption,asset.aiCaption,asset.tags].filter(Boolean).join(' '));
@@ -34,7 +35,7 @@ export function assemble(plan,materials,prompt,layout){
     return {id:randomUUID(),assetId:a.id,name:item.name,kind:a.kind,x,y,width,height,rotation:item.rotation,opacity:item.opacity,shape:'rectangle',points:[],crop:{x:0,y:0,zoom:1},visible:true,locked:false,note:item.reason};
   });
   if(materials.some(m=>m.asset.derived)&&!layers.some(l=>materials.some(m=>m.asset.id===l.assetId&&m.asset.derived)))throw new Error('The layout omitted every segmented fragment.');
-  return {title:plan.title,brief:prompt,strategy:'atlas',background:layout.background,layers,evidence:{supported:plan.supported||[],uncertain:plan.uncertain||[],rules:[layout.rationale,...(plan.rules||[])]}};
+  return {title:plan.title,brief:prompt,strategy:'atlas',background:canvasGround(layout.background),layers,evidence:{supported:plan.supported||[],uncertain:plan.uncertain||[],rules:[layout.rationale,...(plan.rules||[])]}};
 }
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -69,6 +70,6 @@ export async function renderCollage(store,project,id){
     overlays.push({input,left:x,top:y});
   }
   const output=path.join(store.root,'media',`${id}.png`);
-  await sharp({create:{width:canvasW,height:canvasH,channels:4,background:project.background}}).composite(overlays).png().toFile(output);
+  await sharp({create:{width:canvasW,height:canvasH,channels:4,background:canvasGround(project.background)}}).composite(overlays).png().toFile(output);
   return `/media/${id}.png`;
 }

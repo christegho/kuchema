@@ -1,9 +1,10 @@
 import {z} from 'zod';
-import {TRANSFORMS} from './transforms.js';
+import {TRANSFORMS,DEFAULT_TRANSFORMS,permittedTransforms,treatmentBudget} from './transforms.js';
 export const creationInput=z.object({
  prompt:z.string().trim().min(8).max(3000),ids:z.array(z.string().max(100)).max(200).default([]),
  count:z.number().int().min(6).max(20).default(6),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
  useReferences:z.boolean().default(true),transformations:z.boolean().default(true),recolouring:z.boolean().default(true),
+ enabledTransforms:z.array(z.enum(TRANSFORMS.filter(t=>t!=='none'))).max(TRANSFORMS.length-1).default(DEFAULT_TRANSFORMS),
  imageModel:z.enum(['economy','gpt-image']).default('economy'),
  aesthetic:z.enum(['prompt','cut-paper','continuous']).default('prompt'),generation:z.enum(['needed','always']).default('needed'),
  contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
@@ -17,25 +18,24 @@ export const advanceSchema=z.object({layerOrder:z.array(z.string().max(30)).min(
 export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  const base=advanceSchema.shape.images.element,permitted=job.useReferences?referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)&&!['people','composition'].includes(a.archive?.category)).map(a=>a.id):[];
  const transform=base.shape.transform,none=transform.extend({type:z.literal('none')});
- const permittedTransforms=TRANSFORMS.filter(type=>job.recolouring||type!=='recolour');
- const permittedTransform=transform.extend({type:z.enum(permittedTransforms)});
+ const enabled=permittedTransforms(job);
+ const permittedTransform=transform.extend({type:z.enum(['none',...enabled])});
  // Fixed slots avoid ambiguous unions in constrained multimodal decoding. Retrieval supplies
  // the originals; the visual director still chooses every subject, treatment and placement.
  const slots={};
  for(let i=0;i<job.count;i++){
   const key=`F${String(i+1).padStart(2,'0')}`,a=i<job.count-generatedCount?archive[i]:null,generationIndex=i-(job.count-generatedCount);
-  const requiredRole=a?(job.humanContextIds?.includes(a.id)?'people':'environment'):job.requiresGeneratedEnvironment&&generationIndex===0?'environment':null;
+  const requiredRole=a?'people':generationIndex<2?'environment':null;
   const generatedRole=z.enum(['environment','material']);
   const referencePool=permitted,assigned=job.referenceAssignments?.[key];
   const referenceIds=assigned?z.tuple(assigned.map(id=>z.literal(id))):referencePool.length?z.array(z.enum(referencePool)).min(1).max(2):z.array(z.string()).max(0);
-  const requiredWaterTransform=!a&&job.requiresWaterTransformation&&generationIndex===0;
   const boundary=requiredRole==='people'?z.enum(['silhouette','residue']):!a&&requiredRole==='environment'?z.literal('field'):z.enum(['silhouette','residue','field']);
-  const plannedPlacement=!a&&requiredRole==='environment'?placement.extend({width:z.number().min(.9).max(1.4)}):placement;
+  const plannedPlacement=placement.extend({width:z.number().min(.1).max(.9)});
   slots[key]=base.extend({key:z.literal(key),sourceId:a?z.literal(a.id):z.null(),
    role:requiredRole?z.literal(requiredRole):generatedRole,
    prompt:a?z.literal(''):z.string().min(40).max(1200),segment:z.string().min(8).max(300),
    referenceIds:a?z.array(z.string()).max(0):referenceIds,
-   transform:requiredRole!=='people'&&job.transformations&&(!a||a.allowTransform)?(requiredWaterTransform?permittedTransform.extend({type:z.literal('water-flow')}):!a&&i===job.count-generatedCount?permittedTransform.extend({type:z.enum(permittedTransforms.filter(t=>t!=='none'))}):permittedTransform):none,
+   transform:!a&&enabled.length?permittedTransform:none,
    boundary,placement:plannedPlacement});
  }
  return advanceSchema.extend({layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
@@ -50,13 +50,14 @@ export function validateAdvance(plan,archive,job,generatedCount,referenceArchive
   if(item.sourceId){
    if(!job.includeArchive)throw new Error('The plan includes archive pixels while archive inclusion is off.');
    if(!source||ids.has(source.id))throw new Error('Unknown or repeated source image. Each image must be distinct.');ids.add(source.id);
-   if(item.role!==(job.humanContextIds?.includes(source.id)?'people':'environment'))throw new Error('The source role does not match its archive category.');
+   if(item.role!=='people'||(source.archive?source.archive.category!=='people':!job.humanContextIds?.includes(source.id)))throw new Error('Only archive people may supply direct collage pixels.');
    if(item.role==='people'&&(!job.includePeople||item.transform.type!=='none'||!['silhouette','residue'].includes(item.boundary)))throw new Error('People require untransformed archive cutouts and people inclusion enabled.');
    if(!source.allowCrop&&item.boundary!=='whole')throw new Error('The plan violates a no-crop permission.');
    if(!source.allowTransform&&item.transform.type!=='none')throw new Error('The plan violates a transformation permission.');
   } else {if(item.role==='people')throw new Error('People must be cropped from archive photographs, never generated.');generated++;if(!item.prompt.trim()||item.boundary==='whole')throw new Error('Generated material needs a prompt and a SAM extraction.');}
   if(item.boundary==='whole')throw new Error('Whole rectangular images are not permitted in automatic collages.');
   if(!job.transformations&&item.transform.type!=='none')throw new Error('Transformations are switched off.');
+  if(item.transform.type!=='none'&&!permittedTransforms(job).includes(item.transform.type))throw new Error('The plan uses a disabled transformation.');
   if(!job.recolouring&&item.transform.type==='recolour')throw new Error('Recolouring is switched off.');
   if(job.referenceAssignments?.[item.key]&&JSON.stringify(item.referenceIds)!==JSON.stringify(job.referenceAssignments[item.key]))throw new Error('The plan changed the required Chikukwa and water reference pair.');
   for(const id of item.referenceIds)if(!job.useReferences||job.humanContextIds?.includes(id)||!referenceArchive.some(a=>a.id===id&&a.allowReference&&!['people','composition'].includes(a.archive?.category)))throw new Error('The plan uses an unpermitted image-generation reference.');
@@ -65,8 +66,8 @@ export function validateAdvance(plan,archive,job,generatedCount,referenceArchive
  if(generated!==generatedCount)throw new Error('The plan changed the preflighted number of generated images. No image calls were made.');
  if(!job.includePeople&&plan.images.some(i=>!i.sourceId&&i.role==='people'))throw new Error('The plan includes people while people inclusion is switched off.');
  if(job.requiresGeneratedEnvironment&&!plan.images.some(i=>!i.sourceId&&i.role==='environment'))throw new Error('The plan omitted the required high-resolution environmental field.');
- if(job.requiresWaterTransformation&&!plan.images.some(i=>!i.sourceId&&i.role==='environment'&&i.transform.type==='water-flow'))throw new Error('The plan omitted the required water-flow transformation.');
- if(job.transformations&&plan.images.some(i=>!i.sourceId||archive.find(a=>a.id===i.sourceId)?.allowTransform)&&!plan.images.some(i=>i.transform.type!=='none'))throw new Error('The plan omitted the requested pre-crop transformation.');
+ const treated=plan.images.filter(i=>i.transform.type!=='none'),budget=treatmentBudget(generatedCount);
+ if(treated.length>budget.maxImages||new Set(treated.map(i=>i.transform.type)).size>budget.maxTypes)throw new Error('The plan exceeds the restrained transformation budget.');
  if(plan.images.filter(i=>['silhouette','residue'].includes(i.boundary)).length<2)throw new Error('The plan needs visible SAM silhouettes, not only rectangular fields.');
  return plan;
 }

@@ -8,6 +8,7 @@ import express from 'express';
 import sharp from 'sharp';
 import {createStore} from '../server/store.js';
 import {createApp} from '../server/app.js';
+import {DEFAULT_GROUND} from '../shared/ground.js';
 process.env.OPENROUTER_API_KEY='browser-test-never-sent';
 const dir=await fs.mkdtemp(path.join(os.tmpdir(),'situated-browser-'));
 const store=await createStore(dir);
@@ -16,6 +17,12 @@ for(const [i,title] of ['Water and rock','A path through the valley','Water at t
  const bytes=await sharp({create:{width:600,height:400,channels:3,background:{r:60+i*30,g:100,b:140}}}).png().toBuffer();
  await store.addImage(bytes,`fixture-${i}.png`,{title});
 }
+// Seed an already cropped generated fragment to exercise manual editing without
+// restoring the removed raw-photo paste shortcut.
+const cutBytes=await sharp({create:{width:600,height:400,channels:4,background:'#738271'}}).composite([{input:Buffer.from('<svg width="600" height="400"><ellipse cx="300" cy="200" rx="270" ry="180" fill="white"/></svg>'),blend:'dest-in'}]).png().toBuffer();
+const cut=await store.addImage(cutBytes,'prepared-fragment.png',{kind:'generated',derived:{segmenter:'test fixture',parentId:store.state.assets[0].id},allowCrop:true});
+store.state.project={title:'Prepared study',brief:'A cropped material study',strategy:'atlas',background:'#eeeedd',evidence:null,layers:[{id:'prepared-layer',assetId:cut.id,name:'Prepared fragment',kind:'generated',x:300,y:200,width:600,height:400,rotation:0,opacity:1,shape:'rectangle',points:[],crop:{x:0,y:0,zoom:1},visible:true,locked:false,note:'Composition-led cut'}]};
+await store.persist();
 const app=createApp(store);app.use(express.static(path.resolve('dist')));
 const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
 const url=`http://127.0.0.1:${server.address().port}`;
@@ -27,6 +34,17 @@ try{
  await page.goto(url);await page.getByRole('textbox',{name:'Describe your image'}).waitFor();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.getByLabel('Images',{exact:true}).waitFor();
+ assert.equal(await page.locator('.transform-grid input').count(),11);
+ await page.getByRole('button',{name:'Clear treatments',exact:true}).click();
+ assert.equal(await page.locator('.transform-grid input:checked').count(),0);
+ await page.getByRole('button',{name:'Restore gentle defaults',exact:true}).click();
+ assert.equal(await page.locator('.transform-grid input:checked').count(),5);
+ await page.getByLabel('Water refraction',{exact:true}).uncheck();
+ await page.getByLabel('Reflection echoes',{exact:true}).check();
+ await page.getByLabel('Use material treatments',{exact:true}).uncheck();
+ assert.equal(await page.getByLabel('Reflection echoes',{exact:true}).isDisabled(),true);
+ await page.getByLabel('Use material treatments',{exact:true}).check();
+ await page.screenshot({path:'test-results/treatment-options-desktop.png',fullPage:true});
  assert.deepEqual(await page.getByLabel('Images',{exact:true}).locator('option').evaluateAll(xs=>xs.map(x=>x.value)),Array.from({length:15},(_,i)=>String(i+6)));
  await page.getByLabel('Images',{exact:true}).selectOption('20');await page.getByLabel('Images',{exact:true}).selectOption('6');
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
@@ -45,8 +63,11 @@ try{
  await page.getByLabel('Contributor caption',{exact:true}).fill('A memory from this place.');
  await page.getByRole('button',{name:'Save context',exact:true}).click();
  await until(()=>store.state.assets[0].locality==='A documented test locality');
- await page.locator('.add-fragment').first().click();
- await until(()=>store.state.project?.layers.length===1);
+ assert.equal(await page.locator('.add-fragment').count(),0);
+ await page.getByRole('dialog',{name:'Image',exact:true}).waitFor({state:'hidden'});
+ await page.getByRole('dialog',{name:'Archive',exact:true}).getByRole('button',{name:'Close dialog',exact:true}).click();
+ await page.getByRole('dialog',{name:'Archive',exact:true}).waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'Edit',exact:true}).click();
  await page.locator('.layer-list button').first().click();
  await page.getByLabel('Name',{exact:true}).fill('A considered fragment');
  await page.getByLabel('Edge',{exact:true}).selectOption('ellipse');
@@ -63,6 +84,8 @@ try{
  await page.getByRole('button',{name:'Done',exact:true}).click();
  const pngPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Save image ↓',exact:true}).click();
  const png=await pngPromise;await png.saveAs('test-results/export-test.png');const meta=await sharp('test-results/export-test.png').metadata();assert.equal(meta.width,2400);assert.equal(meta.height,1500);
+ const corner=await sharp('test-results/export-test.png').extract({left:0,top:0,width:1,height:1}).removeAlpha().raw().toBuffer();
+ assert.equal('#'+corner.toString('hex'),DEFAULT_GROUND,'Editor export must replace the old pale canvas ground');
  await page.reload();await page.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('.layer-list button').first().click();
  assert.equal(await page.getByLabel('Name',{exact:true}).inputValue(),'A considered fragment');
  await page.getByRole('button',{name:'Done',exact:true}).click();
@@ -74,14 +97,14 @@ try{
  await page.getByRole('navigation').getByRole('button',{name:/Archive/}).click();
  const uploaded=await sharp({create:{width:600,height:400,channels:3,background:'#aaa'}}).png().toBuffer();
  await page.locator('input[type=file]').first().setInputFiles({name:'browser-upload.png',mimeType:'image/png',buffer:uploaded});
- await until(()=>store.state.assets.length===6);await page.getByText('browser-upload',{exact:true}).waitFor();
+ await until(()=>store.state.assets.length===7);await page.getByText('browser-upload',{exact:true}).waitFor();
  await page.screenshot({path:'test-results/archive-desktop.png',fullPage:true});
  await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);
@@ -94,6 +117,8 @@ try{
  console.log('PASS a background creation updates the artwork after polling, without a reload or duplicate submission.');
  const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});mobile.on('pageerror',e=>errors.push(e.message));
  await mobile.goto(url);await mobile.getByRole('textbox',{name:'Describe your image'}).waitFor();
+ await mobile.getByRole('button',{name:'Options ⌄',exact:true}).click();
+ await mobile.screenshot({path:'test-results/treatment-options-mobile.png',fullPage:true});
  assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await mobile.screenshot({path:'test-results/installation-mobile.png',fullPage:true});
  await mobile.getByRole('navigation').getByRole('button',{name:/Archive/}).click();assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await mobile.screenshot({path:'test-results/archive-mobile.png',fullPage:true});
  assert.deepEqual(errors,[]);console.log('PASS archive upload/context, persistence, editing, polygon cuts, undo/redo, 2400px export, provenance, presentation, desktop/mobile and no runtime errors.');

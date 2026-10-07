@@ -83,7 +83,7 @@ def process(req):
             combined=np.maximum(combined,np.asarray(mask))
         alpha=Image.fromarray(combined)
         coverage=np.asarray(alpha).mean()/255
-        if coverage<.004 or (coverage>.97 and item.get('boundary')!='field'): continue
+        if coverage<.004 or coverage>.9: continue
         boundary=item.get('boundary','silhouette')
         if boundary=='residue':
             radius=max(3,int(min(w,h)*.035)//2*2+1)
@@ -95,8 +95,18 @@ def process(req):
             scale=max(1,min(w,h)//240)
             sw,sh=max(1,w//scale),max(1,h//scale)
             small=alpha.resize((sw,sh),Image.Resampling.NEAREST)
-            size=min(31,max(5,int(min(sw,sh)*.11)//2*2+1))
+            size=min(17,max(3,int(min(sw,sh)*.045)//2*2+1))
             alpha=small.filter(ImageFilter.MaxFilter(size)).resize((w,h),Image.Resampling.BILINEAR)
+            # Keep expansion near the composition-directed subject box. A field
+            # must not grow back into an almost complete rectangular photograph.
+            pad=.025
+            left=max(0,int((b[0]-pad)*w));top=max(0,int((b[1]-pad)*h))
+            right=min(w,int((b[2]+pad)*w));bottom=min(h,int((b[3]+pad)*h))
+            clipped=Image.new('L',(w,h),0)
+            clipped.paste(alpha.crop((left,top,right,bottom)),(left,top))
+            alpha=clipped
+        coverage=np.asarray(alpha).mean()/255
+        if coverage>.92: continue
         bbox=alpha.getbbox()
         if not bbox: continue
 

@@ -11,12 +11,24 @@ import {creationInput,validateAdvance} from '../server/plan.js';
 import {createStore} from '../server/store.js';
 import {archiveHasPeople,assemble,retrieveArchive} from '../server/compose.js';
 import {coverageReader} from '../server/coverage.js';
+import {DEFAULT_GROUND} from '../shared/ground.js';
 import {creativeExcerpt} from '../server/context.js';
-import {transformImage} from '../server/transforms.js';
+import {transformImage,permittedTransforms,treatmentBudget} from '../server/transforms.js';
 const json=(data,annotations=[])=>({choices:[{message:{content:JSON.stringify(data),annotations}}],usage:{cost:.001}});
 const region={key:'stone',label:'Stone',box:[100,100,900,900],point:[500,500],reason:'A solid form'};
 const prices=async o=>({text:{vision:{bound:.04,maxTokens:4000},research:{bound:.03,maxTokens:2000},planner:{bound:.04,maxTokens:5000}},images:[{model:'bytedance-seed/seedream-4.5',provider:'seed',reserved:.048,referenceLimit:2,resolution:'2K'}],total:.15+o.generatedCount*.048});
-const fakeVision={available:async()=>true,request:async r=>r.action==='health'?{ready:true}:r.action==='detect'?{detections:[],width:120,height:80}:{cuts:r.regions.map(q=>({...q,file:r.path,cropBox:[0,0,120,80],coverage:.5,detector:'VLM-directed',segmenter:'SAM test double'})),detections:[]},close(){}};
+const fakeVision={available:async()=>true,request:async r=>{
+ if(r.action==='health')return {ready:true};
+ if(r.action==='detect')return {detections:[],width:120,height:80};
+ const cuts=[];
+ for(const q of r.regions){
+  const {width,height}=await sharp(r.path).metadata(),file=path.join(r.outputDir,`cut-${q.key}.png`);
+  const mask=Buffer.from(`<svg width="${width}" height="${height}"><ellipse cx="${width/2}" cy="${height/2}" rx="${width*.46}" ry="${height*.46}" fill="white"/></svg>`);
+  await sharp(r.path).ensureAlpha().composite([{input:mask,blend:'dest-in'}]).png().toFile(file);
+  cuts.push({...q,file,cropBox:[0,0,width,height],coverage:.66,detector:'VLM-directed',segmenter:'SAM test double'});
+ }
+ return {cuts,detections:[]};
+},close(){}};
 async function fixture(t,n=5){
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'situated-v4-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));const store=await createStore(dir);
  for(let i=0;i<n;i++)await store.addImage(await sharp({create:{width:120,height:80,channels:3,background:{r:40+i*8,g:70,b:130}}}).png().toBuffer(),`source-${i}.png`,{allowReference:i===0});
@@ -24,8 +36,8 @@ async function fixture(t,n=5){
 }
 function direction(archive,job,generatedCount,referenceArchive=archive){
  return {title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
-  const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):job.requiresGeneratedEnvironment&&generationIndex===0?'environment':'material';
-  return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&job.requiresWaterTransformation&&generationIndex===0?'water-flow':generated&&job.transformations?'misregistration':'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:.5,y:.5,width:1,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
+  const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):generationIndex<2?'environment':'material';
+  return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
  })};
 }
 function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
@@ -57,12 +69,12 @@ test('coverage and occlusion checks warn without withholding a rendered image',(
 test('6–20 means distinct inputs; invalid counts and duplicate sources are rejected',()=>{
  for(const count of [0,5,21])assert.throws(()=>input({count}));
  assert.equal(input({count:20}).count,20);
- const a=Array.from({length:6},(_,i)=>({id:String(i),allowCrop:true})),j=input({}),p=direction(a,j,0);
+ const a=Array.from({length:6},(_,i)=>({id:String(i),allowCrop:true,archive:{category:'people'}})),j={...input({}),humanContextIds:a.map(a=>a.id)},p=direction(a,j,0);
  p.images[1].sourceId=p.images[0].sourceId;assert.throws(()=>validateAdvance(p,a,j,0),/repeated source/);
  p.images[1].sourceId='1';assert.throws(()=>validateAdvance(p,a,{...j,includeArchive:false},0),/inclusion is off/);
- p.images[0].transform.type='posterize';assert.throws(()=>validateAdvance(p,a,j,0),/transformation permission/);
+ p.images[0].transform.type='posterize';assert.throws(()=>validateAdvance(p,a,j,0),/untransformed archive cutouts/);
  const recolourPlan=direction(a.slice(0,5),{...j,recolouring:false},1);recolourPlan.images[5].transform.type='recolour';
- assert.throws(()=>validateAdvance(recolourPlan,a.slice(0,5),{...j,recolouring:false},1),/Recolouring is switched off/);
+ assert.throws(()=>validateAdvance(recolourPlan,a.slice(0,5),{...j,recolouring:false},1),/disabled transformation|Recolouring is switched off/);
 });
 test('Qwen coordinate systems normalize and invalid segmentation geometry recovers',()=>{
  assert.deepEqual(normalizedBox.parse([100,200,900,800]),[.1,.2,.9,.8]);assert.throws(()=>normalizedBox.parse([900,0,100,800]));
@@ -78,33 +90,34 @@ test('Qwen coordinate systems normalize and invalid segmentation geometry recove
  const skipped=normalizeObservations({images:[{id:'a',description:'Surface',coordinateSpace:'normalized_1000',regions:[{...region,box:[900,900,100,100]}]}]},[{id:'a',width:276,height:182}])[0];
  assert.equal(skipped.regions.length,0);assert.match(skipped.geometryWarnings[0],/Skipped/);
 });
-for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, transformed-image grounding, six visible distinct roots and full canvas`,async t=>{
+for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, transformed-image grounding, six cropped distinct roots and bounded layers`,async t=>{
  const store=await fixture(t,mode==='archive'?6:5),calls=[],segments=[];
  const pipeline=new CreationPipeline(store,{prices,vision:{...fakeVision,request:async r=>{if(r.action==='segment'){segments.push(r);assert.ok(store.state.creations[0].plan);assert.equal(r.directed,true);}return fakeVision.request(r);}},request:requestDouble(store,{onBody:(e,b)=>calls.push({e,b})})});
  const job=await pipeline.start(input({includeArchive:mode!=='generated',contextText:'Contributor account: this water connects generations.'}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.coverage.distinctVisible,6);assert.ok(job.coverage.coverage>=.92);assert.equal(new Set(job.materials.map(m=>m.rootId)).size,6);
- assert.equal(calls.filter(c=>c.e==='images').length,mode==='generated'?6:1);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project.background,DEFAULT_GROUND);assert.equal(job.plan.background,DEFAULT_GROUND);assert.equal(job.finalLayout.background,DEFAULT_GROUND);assert.equal(job.coverage.distinctVisible,6);assert.ok(job.project.layers.every(l=>l.width*l.height<=1600000*.580001));assert.equal(new Set(job.materials.map(m=>m.rootId)).size,6);
+ assert.equal(calls.filter(c=>c.e==='images').length,6);
  assert.equal(calls.filter(c=>c.e==='chat/completions').length,4);
  assert.ok(calls.find(c=>c.b.response_format?.json_schema?.name==='advance_collage_plan').b.messages[1].content.some(c=>c.type==='image_url'));
  {
   assert.ok(calls.find(c=>c.e==='images').b.input_references.length);
   const transformed=job.workingImages.filter(w=>w.transform.type!=='none');assert.ok(transformed.length);
   assert.ok(transformed.every(w=>segments.some(r=>r.path.endsWith(`${w.assetId}.png`))));
-  assert.ok(job.materials.filter(m=>store.state.assets.find(a=>a.id===m.assetId).kind==='generated').every(m=>store.state.assets.find(a=>a.id===store.state.assets.find(a=>a.id===m.assetId).derived.parentId).derived?.operation==='transform'));
+  assert.ok(transformed.every(w=>job.materials.some(m=>store.state.assets.find(a=>a.id===m.assetId).derived?.parentId===w.assetId)));
  }
  if(mode==='generated')assert.ok(job.project.layers.every(l=>l.kind==='generated'));
  const meta=await sharp(path.join(store.root,'media',job.id+'.png')).metadata();assert.equal(meta.width,2400);assert.equal(meta.height,1500);
  assert.equal((await pipeline.start({...input({}),requestId:job.requestId})).id,job.id);
 });
-test('twenty originals retain nineteen archive roots plus one high-resolution transformed field',async t=>{
- const store=await fixture(t,20);const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store)});
- const job=await pipeline.start(input({count:20}));await pipeline.running;assert.equal(job.status,'complete',job.error);assert.equal(job.coverage.distinctVisible,20);assert.equal(job.requestedMaterials,1);
+test('non-people archive photographs are reference-only even when crop permission is enabled',async t=>{
+ const store=await fixture(t,8);const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store)});
+ const job=await pipeline.start(input({count:6}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,6);assert.ok(job.plan.images.every(i=>i.sourceId===null));
 });
 test('local person detection assigns direct archive cutouts and never generates people',async t=>{
  const store=await fixture(t,6),humanId=store.state.assets[0].id,calls=[];
  const vision={...fakeVision,request:async r=>r.action==='detect'&&r.path.endsWith(`${humanId}.png`)?{detections:[{label:'person',confidence:.9}],width:120,height:80}:fakeVision.request(r)};
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store,{onBody:(e,b)=>calls.push({e,b})})}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,1);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.requestedMaterials,5);
  assert.ok(job.plan.images.some(i=>i.sourceId===humanId&&i.role==='people'));
  assert.ok(job.materials.some(m=>m.rootId===humanId));
  assert.equal(job.plan.images.some(i=>!i.sourceId&&i.role==='people'),false);
@@ -171,7 +184,7 @@ test('unaffordable configurations and premium price uncertainty make zero paid c
 });
 test('unverified research fails before generation; duplicate plans fail before image requests',async t=>{
  const store=await fixture(t);let imageCalls=0;
- for(const options of [{noCitations:true},{mutatePlan:p=>{p.images[1].sourceId=p.images[0].sourceId;return p;}}]){
+ for(const options of [{noCitations:true},{mutatePlan:p=>{p.images[1].key=p.images[0].key;return p;}}]){
   const pipeline=new CreationPipeline(store,{vision:fakeVision,prices,request:requestDouble(store,{...options,onBody:e=>{if(e==='images')imageCalls++;}})});
   const job=await pipeline.start(input({}));await pipeline.running;assert.equal(job.status,'failed');
  }
@@ -196,7 +209,7 @@ test('pre-crop transformations preserve originals, enforce permissions and recor
  a.allowTransform=true;const changed=await transformImage(store,a,{type:'posterize',strength:.5,reason:'Material transfer'});
  assert.equal(changed.rootId,a.id);assert.equal(changed.derived.operation,'transform');assert.notEqual(changed.hash,a.hash);assert.deepEqual(await fs.readFile(path.join(store.root,'media',a.id+'.png')),before);
  const recoloured=await transformImage(store,a,{type:'recolour',strength:.65,reason:'Relate water and soil',palette:'#173f3b #9c6b40 #d6c8a5'});
- assert.notEqual(recoloured.hash,a.hash);assert.equal(recoloured.derived.transform.type,'recolour');assert.equal(recoloured.derived.transform.effectiveStrength,.65);
+ assert.notEqual(recoloured.hash,a.hash);assert.equal(recoloured.derived.transform.type,'recolour');assert.equal(recoloured.derived.transform.effectiveStrength,.5);
  const flowed=await transformImage(store,a,{type:'water-flow',strength:.55,reason:'Let water movement shape the material'});
  assert.notEqual(flowed.hash,a.hash);assert.equal(flowed.derived.transform.type,'water-flow');
 });
@@ -267,4 +280,23 @@ test('planner cannot substitute generated people or change official reference pa
   const job=await pipeline.start(input({}));await pipeline.running;assert.equal(job.status,'failed');
  }
  assert.equal(images,0);
+});
+
+for(const enabledTransforms of [[],['reflection-echo']])test(`official pipeline honors the exact enabled treatment list: ${enabledTransforms.join(',')||'all off'}`,async t=>{
+ const store=await officialFixture(t);
+ const pipeline=new CreationPipeline(store,{vision:fakeVision,prices,request:requestDouble(store)});
+ const job=await pipeline.start(input({enabledTransforms}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);
+ assert.ok(job.plan.images.every(i=>i.transform.type==='none'||enabledTransforms.includes(i.transform.type)));
+ assert.ok(job.workingImages.every(i=>i.transform.type==='none'||enabledTransforms.includes(i.transform.type)));
+ assert.ok(job.plan.images.filter(i=>i.transform.type!=='none').length<=1);
+ assert.equal(job.plan.images.filter(i=>!i.sourceId&&i.role==='environment').length,2);
+});
+test('a segmenter returning whole photographs cannot paste them into an automatic collage',async t=>{
+ const store=await officialFixture(t);
+ const vision={...fakeVision,request:async r=>r.action==='segment'?{cuts:r.regions.map(q=>({...q,file:r.path,coverage:.4,segmenter:'misleading metadata'})),detections:[]}:fakeVision.request(r)};
+ const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store)});
+ const job=await pipeline.start(input({}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,6);
+ assert.ok(job.failedParts.every(p=>/almost whole rectangular/.test(p.error)));
 });
