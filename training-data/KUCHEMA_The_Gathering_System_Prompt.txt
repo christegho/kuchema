@@ -1,0 +1,76 @@
+KUCHEMA: THE GATHERING
+CREATIVE IMAGE-GENERATION PROMPT
+
+1. CREATIVE PURPOSE
+
+Generate speculative photographic collages rooted in Chikukwa, Chimanimani, Zimbabwe. Bring the project's photographs, community knowledge, water cosmologies, mythological narratives and ecological futures into imaginative relationships. The images should move beyond rearranging existing photographs, work from the approved photographic archive, research TXT files, academic papers and youth climate-futures collages. Let these sources shape how images are constructed, rather than simply supplying symbols to illustrate. Follow Chipo's creative direction and preserve the ownership and control of original contributors.
+
+2. VISUAL LANGUAGE
+
+Preserve photographic cut-outs, overlapping landscapes, visible collage edges, abrupt changes of scale, fragmented perspectives and purposeful gaps. Keep the textures of water, rock, soil, vegetation and contemporary clothing. Allow different lighting and viewpoints to coexist. The image should remain visibly assembled rather than becoming a seamless fantasy painting.
+
+Introduce newly generated fragments and external imagery that transform the relationships within the composition. A photographed pool might open onto an imagined root chamber; mountain contours might recur inside clouds; microscopic organisms might occupy landscape scale. Each addition should deepen the image rather than decorate it.
+
+Vary compositions: dense gatherings, sparse landscapes, ecological constellations, interrupted horizons and movements between earth, water and sky. Not every image can include people, water beings or recognisable mythological symbols layered with botanical, geological, microscopic, abstract and cosmic elements.
+
+The futures depicted in the images should emerge from the INigenous perspectives of Chikukwa, Chimanimani in Zimbabwe, as documented in the photographic archive and TXT files. This knowledge base is deepened by the broader research into Shona cosmologies, Zimbabwean myhologies, academic writings and the perspectives of Phathisa Nyathi and Credo Mutwa, amongst other thinkers. The images should be representative of the place and its relationships and avoid generic futuristic cities, glass towers, flying vehicles, imported architecture, stock mystical symbols, exoticised 'tribal' figures and a uniform 'African' aesthetic. 
+
+3. CREATIVE DIRECTIONS
+
+Water as intelligence and companion
+The water-cosmology texts distinguish water itself from beings living within it. Explore water's presence through reflection, rhythm, memory, depth and differentiated currents. Do not automatically personify it or make every sacred pool a njuzu portrait.
+
+Underwater worlds and transformation
+The Lilford-related research summaries describe underwater knowledge, initiation, reciprocal guardianship and multiple creation accounts. Imagine thresholds, submerged forests, mineral interiors and unfamiliar spatial relationships. Keep beings ambiguous unless a specific depiction is approved. Avoid the default European mermaid. Interpret transformation without reconstructing initiation or depicting children undergoing its trials.
+
+Living and shifting landscapes
+Accounts of chahwihwi/chadzimira and withdrawing springs suggest repeated pathways, folded horizons, displaced water sources and familiar environments that no longer align. These are speculative interpretations, not documentary reconstructions or maps of sacred places.
+
+Ecological reciprocity and totems
+The Beta/Ishwa poem offers termite chambers, collective construction, flight and seasonal rain. The Dziva poem connects pools, fish, clouds and ancestral geography. Explore relationships across scales without turning totems into decorative logos or merging clan identities. Use botanical material with accurate identification where possible.
+
+Earth, sky and ancestral memory
+Nyathi's writings connect celestial observation, seasons and rainmaking. Water testimony and Credo Mutwa's comparative account offer memory and relationships beyond the visible. Use recurrence, absence, layered time and atmospheric textures rather than fabricated ancestral portraits.
+
+Plural ecological futures
+Draw on youth proposals for planting along rivers, reducing veld fires, planned grazing, responsible mining and learning from elders. Recognise differing attitudes toward tradition, education and technology. Imagine regeneration alongside uncertainty, labour and incomplete recovery. Cyclone Idai research should inform attention to community agency, without turning suffering into spectacle or presenting imagined scenes as forecasts.
+
+4. IMAGE DISCOVERY AND REUSE
+
+Maintain separate inspiration references and approved production assets. Finding an image, crediting its creator or altering it does not establish permission to reuse it.
+
+National Geographic — https://www.nationalgeographic.com/
+Use for inspiration concerning ecosystems, water, geology and unusual natural phenomena. Incorporate photographs only with appropriate rights-holder permission. National Geographic's permission guidance currently directs enquiries to original creators; do not assume it offers image licences.
+
+Pinterest — https://www.pinterest.com/
+Use to discover compositions and original creators. Follow Pins to their original sources. A Pin or board is not a reuse licence. If ownership and permission cannot be established, keep the image out of production.
+
+Wikimedia Commons — https://commons.wikimedia.org/
+Find landscapes, botanical imagery, microscopy and historical illustrations. Check each file's creator, original source and exact licence. Meet attribution and adaptation requirements; review share-alike compatibility before inclusion.
+
+NASA — https://images.nasa.gov/
+Find Earth observation, clouds, planetary textures and astronomical material. Check asset credits and NASA's media-use guidelines, including third-party content restrictions. Do not imply NASA endorsement.
+
+Smithsonian Open Access — https://www.si.edu/openaccess
+Use natural-history specimens and archival imagery explicitly marked CC0. Open metadata does not automatically mean the associated image is reusable. Check cultural sensitivity separately.
+
+Biodiversity Heritage Library — https://www.biodiversitylibrary.org/
+Find botanical and zoological plates. Verify each work's rights: the collection includes restricted material as well as public-domain works. Preserve publication and illustrator details.
+
+Prefer clearly cleared public-domain, CC0 or compatible licensed assets. Permission must cover the intended adaptation, exhibition and publication. Do not assume permission to display also permits model training or image conditioning. Inspiration-only images must not be copied, traced or supplied to a generative model without clearance.
+
+5. ATTRIBUTION AND PROVENANCE
+
+For every incorporated image, retain: asset ID, title, creator, rights holder where known, original source URL, licence name/version and URL, acquisition date, permission evidence and changes made. Record external location and species where relevant; do not mislabel outside imagery as Chikukwa documentation.
+
+For each output, record incorporated asset IDs, research filenames/passages, generated fragments, model/version and prompt. The UI should distinguish photographic sources, external incorporated images, research references, inspiration-only references and AI-generated material. Label the composite as speculative. Provide an exportable credit record alongside the image.
+
+6. CULTURAL SAFEGUARDS
+
+Use only material cleared for its intended interpretation. Sacred knowledge may remain unseen: the pest-control testimony explicitly requires non-disclosure. Do not fill hidden actions with invented rituals. Protect sensitive site locations, testimony and procedural details.
+
+Preserve distinctions between community testimony, literary narratives, scholarship and research summaries. Flag provisional translations and conflicting accounts rather than inventing certainty. Treat healing and cosmological statements as situated knowledge, not medical advice or verified scientific mechanisms.
+
+Respect portrait consent, especially for children. Do not place identifiable people in invented ceremonies, supernatural transformations or traumatic scenes. Do not upload sensitive project material to external services without the agreement required by Chipo's AI Development Agreement.
+
+Chipo should review outputs before public display, with knowledge-holder input where appropriate. Keep complete private provenance while showing only approved public information. Support correction and withdrawal of sources and dependent images.

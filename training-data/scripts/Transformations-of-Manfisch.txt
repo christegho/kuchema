@@ -1,0 +1,516 @@
+﻿# Complete Extraction: Dziva reNjuzu (1980) by Christopher Tagwireyi
+
+### As discussed in Grant Lilford's Transformations of a Manfish: Changing Allegories for the Njuzu in Shona Literature (1999)
+
+Source: Journal des Africanistes, 69(1), pp. 199-219  
+Original literary work: Christopher Tagwireyi, Dziva reNjuzu (1980), Harare: The Literature Bureau.
+
+This extraction covers every substantive discussion of Dziva reNjuzu in Lilford's paper, organised by page.
+
+The relevant Shona terminology is ppreserved, the original page references to Tagwireyi's novel are identified, and distinguished between:
+
+- Tagwireyi's narrative: Events, characters and beliefs presented in Dziva reNjuzu.
+- Lilford's interpretation: The literary and cultural analysis offered in the 1999 paper.
+- Comparative material: Oral traditions and scholarship Lilford uses to contextualise the novel, particularly Hans Aschwanden's Karanga Mythology (1989).
+
+Tagwireyi's novel is a literary work drawing on Shona traditions, not a direct transcription of a particular community's oral history.
+
+---
+
+# PART I - THE STORY AND THE NJUZU
+
+## Page 200 - Introduction to Dziva reNjuzu
+
+Lilford, p. 200 | Tagwireyi, 1980
+
+Lilford introduces Dziva reNjuzu alongside Wiseman Magwa's Njuzu (1991), explaining that the two works use the traditional figure of the njuzu in different ways.
+
+The njuzu, described as a water person or water being, is traditionally an ambiguous figure.
+
+It can bring benefits to humans, particularly by initiating people into traditional healing. However, it can also abduct individuals, separate them from their families or cause death.
+
+Lilford notes that people who misuse healing knowledge acquired through njuzu may suffer serious consequences.
+
+### Tagwireyi's interpretation of the njuzu
+
+In Dziva reNjuzu, the water being is primarily a positive figure.
+
+Although its actions initially create conflict, they ultimately contribute to the restoration of social order.
+
+Lilford interprets the njuzu as a catalyst for social transformation.
+
+### The story
+
+The novel is set in an unspecified rural area of Zimbabwe during an idealised precolonial period.
+
+Two families are involved in an ongoing dispute.
+
+The principal characters are:
+
+| Character | Meaning of name | Role |
+|---|---|---|
+| Fungai | Think! | Young girl abducted by a njuzu |
+| Mudyandigere | His eating is guaranteed | Fungai's father |
+| Nhamoinenharo | Troubles are obstinate | Neighbour involved in the family conflict |
+| Marwei | The foolish girl | Nhamoinenharo's daughter and Fungai's companion |
+| Zvichapera | That which will finish | Fungai's mother |
+| Hakata | Wooden divining dice | Traditional healer consulted by the family |
+
+Fungai and Marwei are together when Fungai disappears.
+
+A njuzu has taken Fungai into its underwater dwelling.
+
+Her disappearance intensifies the existing conflict between the families because Mudyandigere believes Nhamoinenharo is responsible.
+
+The conflict eventually requires intervention through divination and the chief's court.
+
+Lilford's interpretation: The water being both initiates the conflict and creates the circumstances through which it can eventually be resolved.
+
+Source: Lilford, p. 200. 
+
+---
+
+## Page 201 - Njuzu as healer and agent of reconciliation
+
+Lilford, p. 201 | Tagwireyi, 1980
+
+Lilford explains that the njuzu in Tagwireyi's novel performs a traditional function: initiating a human being into healing knowledge.
+
+Fungai's disappearance is initially understood as a tragedy.
+
+However, her experience eventually reveals that she has been selected for training as a traditional healer, or n'anga.
+
+The water being therefore operates as an intermediary between the human world and a realm of specialised knowledge.
+
+### Njuzu and traditional healing
+
+Lilford compares Tagwireyi's representation with traditional accounts in which njuzu take people into water and subsequently return them with healing abilities.
+
+He cites a creation narrative recorded by Aschwanden in which water beings are instructed to abduct people and return them with medicinal knowledge.
+
+In this comparative narrative, people taken into water may receive:
+
+- A healing spirit, shavi.
+- Knowledge of medicinal substances.
+- The ability to become a n'anga.
+- Responsibilities toward the wider community.
+
+This particular creation narrative comes from Aschwanden (1989, p. 136), not directly from Tagwireyi's novel.
+
+### Lilford's interpretation
+
+The njuzu represents a form of authority that operates outside ordinary human institutions.
+
+It possesses knowledge and powers that humans do not control.
+
+However, the eventual return of Fungai enables the community to resolve its conflict through traditional systems of justice.
+
+Source: Lilford, p. 201. 
+
+---
+
+## Page 202 - Fungai's experience inside the Njuzu dwelling
+
+Lilford, p. 202 | Tagwireyi, p. 22
+
+This is the most detailed description of the underwater world in the paper.
+
+Lilford reproduces a passage from Dziva reNjuzu in which Fungai recounts what happened after she was taken by the water being.
+
+### The story
+
+Fungai arrives at the dwelling of a female njuzu.
+
+The being takes her into a room containing maggots and other unpleasant substances.
+
+Fungai feels nauseated but is too frightened to express her disgust.
+
+The njuzu presents two plates.
+
+One contains honye (maggots).
+
+The other contains nhope (watery mud).
+
+The being gestures for Fungai to eat.
+
+Although Fungai wants to refuse, she obeys because she is afraid.
+
+After she finishes eating, the female njuzu smiles.
+
+Fungai continues receiving the same food for several days.
+
+After approximately one month, her diet changes.
+
+She begins receiving:
+
+- Hove - fish.
+- Makakanje - crabs.
+
+These foods are much more pleasant than the mud and maggots.
+
+Fungai continues eating them until she eventually returns to the human world.
+
+### Original Shona terminology
+
+| Shona | English |
+|---|---|
+| Honye/ Gonye | Maggots |
+| Nhope | Thin, watery mud |
+| Hove | Fish |
+| Makakanje | Crabs |
+| Kutya | Fear |
+| Mitemo | Laws or rules |
+| N'anga | Traditional healer |
+
+### The significance of the food
+
+Lilford interprets Fungai's experience as a rite of passage into traditional healing.
+
+The unpleasant food is a test.
+
+Fungai must demonstrate that she can obey instructions even when they contradict her ordinary expectations.
+
+The water being smiles because Fungai has successfully passed the test.
+
+Her ability to endure discomfort demonstrates the humility and discipline expected of a traditional healer.
+
+### The laws of the underwater world
+
+Fungai explains that the njuzu operates according to strict laws.
+
+Anyone who refuses the food offered in the underwater world may be prevented from returning to their family.
+
+This remains true even if relatives are praying for the person's return.
+
+The implication is that human desires and requests cannot override the laws governing the underwater realm.
+
+Source: Lilford, p. 202; Tagwireyi, p. 22. 
+
+---
+
+## Page 203 - Spiritual law, punishment and initiation
+
+Lilford, p. 203 | Tagwireyi, p. 22
+
+Lilford continues examining the rules governing Fungai's initiation.
+
+### Punishment and discipline
+
+In Tagwireyi's narrative, the njuzu may punish people by requiring them to:
+
+- Cover their bodies with mud.
+- Spend the night lying in a muddy puddle.
+- Observe strict behavioural rules.
+- Endure uncomfortable conditions.
+
+Lilford emphasises that these punishments are not arbitrary.
+
+They are imposed in response to violations of rules.
+
+Their purpose is to cultivate the discipline required of traditional healers.
+
+### Comparison with Aschwanden's oral narratives
+
+Lilford compares Tagwireyi's account with oral traditions documented by Aschwanden.
+
+In some of these traditions, a person taken into a sacred pool encounters beings who explain the rules of the underwater world.
+
+These rules may prohibit ordinary food, sleeping on mats or entering huts.
+
+The visitor may also be required to remain near snakes and crocodiles.
+
+Disobedience can mean permanent separation from the human world.
+
+Aschwanden refers to these instructions as mhinganidziro.
+
+Lilford distinguishes this term from Tagwireyi's use of mitemo.
+
+| Term | Meaning |
+|---|---|
+| Mhinganidziro | Instructions or prohibitions associated with traditional healing |
+| Mitemo | Laws, commands or rules |
+| Yokutya | Through fear |
+
+In Tagwireyi's narrative, Fungai is not warned beforehand about the rules.
+
+She survives because she behaves respectfully and obeys the njuzu.
+
+### Lilford's interpretation
+
+The water being's authority is associated with discipline, humility, obedience and respect for law.
+
+This contrasts with the uncontrolled anger of Fungai's father.
+
+Where the njuzu exercises authority according to established rules, Mudyandigere acts impulsively.
+
+Source: Lilford, p. 203. 
+
+---
+
+# PART II - MORALITY AND SOCIAL ORDER
+
+## Page 205 - Mud as a cosmological and literary symbol
+
+Lilford, p. 205 | Tagwireyi, p. 22
+
+Lilford briefly returns to Fungai's initiation when comparing Tagwireyi's novel with Magwa's Njuzu.
+
+In Magwa's work, the character Matope is associated with mud.
+
+Lilford notes that the mud associated with this character recalls the unpleasant food Fungai receives during her initiation.
+
+In Tagwireyi's novel, mud is part of a disciplined process of spiritual testing.
+
+In Magwa's play, mud becomes associated with a threatening and violent figure.
+
+### Significance
+
+The same material substance acquires different meanings in different literary contexts.
+
+For Tagwireyi, mud is associated with the underwater world and initiation.
+
+For Magwa, it becomes part of a political allegory.
+
+Source: Lilford, p. 205. 
+
+---
+
+# PART III - THE UNDERWATER WORLD AND ANCESTRAL LAND
+
+## Page 206 - The language of Njuzu
+
+Lilford, p. 206 | Tagwireyi, p. 22
+
+Fungai explains that when she first encountered the njuzu, she could not understand its language.
+
+The original Shona passage is:
+
+> Aitaura nemutauro wandakanga ndisinganzwi panguva iyoyo.
+
+Lilford translates this as the njuzu speaking a language Fungai did not understand at the time.
+
+Tagwireyi does not identify the language.
+
+### Lilford's interpretation
+
+The unfamiliar language reinforces the distinction between the human world and the world of water beings.
+
+The njuzu belongs to a different realm with its own forms of communication.
+
+Lilford also notes that Tagwireyi's novel uses Shona with very few borrowed words, reinforcing its representation of an idealised precolonial world.
+
+Source: Lilford, p. 206; Tagwireyi, p. 22. 
+
+---
+
+## Page 209 - Ancestral protection in the forest
+
+Lilford, p. 209 | Tagwireyi, p. 9
+
+During his journey, Nhamoinenharo encounters a lion.
+
+He kills it.
+
+Later, while suffering from hunger, he receives assistance through ancestral intervention.
+
+Lilford explains that Nhamoinenharo's ancestors recognise his suffering and send him a small rabbit, katsuro.
+
+He kills and eats the rabbit.
+
+### Lilford's interpretation
+
+The forest contains both danger and nourishment.
+
+Dangerous animals threaten human life, while other animals provide food.
+
+The ancestors reward Nhamoinenharo because he demonstrates courage and honourable behaviour.
+
+### Cosmological significance
+
+The episode suggests that ancestral beings remain involved in the lives of their descendants.
+
+They can intervene through events in the natural environment.
+
+Animals therefore become part of the relationship between humans, ancestors and the landscape.
+
+Source: Lilford, p. 209; Tagwireyi, p. 9. 
+
+---
+
+# PART IV - SACRED WATER, RITUAL PURITY AND DROUGHT
+
+## Page 210 - Njuzu as guardians of sacred water
+
+Lilford, p. 210 | Tagwireyi, pp. 18-19
+
+This passage is particularly interesting because it suggests that the continued presence of water in a sacred pool depends on maintaining appropriate relationships with the njuzu who inhabit it.
+
+Lilford describes three interconnected elements: the prohibition against using blackened pots, the ritual requirements surrounding offerings, and the possibility that njuzu will abandon a water source when its rules are violated.
+
+### 1. The blackened pot: What does Tagwireyi actually say?
+
+On page 210, Lilford reproduces a passage from Tagwireyi's novel, originally on page 19.
+
+The Shona passage begins:
+
+> "Kunyangwe munhu aiti akaenda nehari ina matsito..."
+
+Lilford translates this as an account in which a person takes a soot-blackened pot to collect water from a pool inhabited by njuzu. By the following morning, the entire pool has dried up.
+
+The important Shona terms are:
+
+| Shona | Meaning |
+|---|---|
+| Hari | A pot or vessel, traditionally used for cooking or carrying water |
+| Matsito | Soot or blackening associated with a cooking pot |
+| Dziva | A pool or body of water |
+| Njuzu | Water beings associated with sacred pools, springs and rivers |
+| Rak apwa / rakapwa | Has dried up or become depleted |
+
+The passage describes a direct relationship between human behaviour and the condition of the water source.
+
+A seemingly ordinary act-bringing a cooking pot to collect water-can have extraordinary consequences if the vessel violates the rules governing that place.
+
+Importantly, the text does not say that the pot physically contaminates the water and causes it to evaporate. Rather, the drying of the pool is understood through the withdrawal or displeasure of its spiritual inhabitants.
+
+### 2. Why do njuzu object to blackened pots?
+
+Lilford notes that Tagwireyi describes njuzu as disliking black things.
+
+However, Lilford questions whether this prohibition should be understood literally as an aversion to the colour black.
+
+He points out an apparent contradiction: in the same narrative, njuzu accept the sacrifice of an entirely black cow.
+
+They also take Black human beings into their underwater world, sometimes returning them as traditional healers.
+
+If njuzu rejected blackness itself, these practices would seem contradictory.
+
+Lilford therefore suggests that the underlying principle is ritual purity rather than colour.
+
+A soot-blackened pot carries the residue of previous use. An entirely black cow, by contrast, can be considered pure because its colouring is uniform and unblemished.
+
+In this interpretation, the prohibition concerns the condition of the object and its appropriateness for entering a sacred environment.
+
+This is Lilford's interpretation, however, rather than an explanation explicitly given by Tagwireyi.
+
+### 3. Njuzu as guardians of water
+
+Lilford connects Tagwireyi's account to Hans Aschwanden's Karanga Mythology (1989).
+
+Aschwanden recorded traditions in which njuzu inhabit pools, springs and wetlands that remain filled with water even during drought.
+
+These beings are described as responsible for maintaining the vitality of water sources.
+
+Their presence is associated with the continued existence of the water.
+
+Their departure can therefore result in the drying of rivers, springs and pools.
+
+Aschwanden also describes how njuzu may abandon their habitats because of noise, disrespect or violations of traditional restrictions.
+
+This establishes a reciprocal relationship:
+
+The pool provides a dwelling place for njuzu, while njuzu sustain and protect the pool.
+
+Humans must respect the conditions of that relationship.
+
+### 4. Ritual offerings and the role of older women
+
+Another important detail appears in Tagwireyi's description of ritual beer.
+
+Lilford notes that njuzu, like ancestral spirits, require beer prepared by women who have passed childbearing age.
+
+The original Shona expression is:
+
+> "chembere dzaguma ura"
+
+This refers to older women who have passed their reproductive years.
+
+Lilford connects this requirement to broader ideas of ritual purity within Shona religious traditions.
+
+The significance is that the preparation of offerings is governed by specific conditions concerning who may perform particular tasks.
+
+The paper does not provide a complete account of the ceremony, nor does it explain all the responsibilities of the women involved.
+
+However, it establishes that relationships with njuzu involve ritual protocols, offerings and particular forms of spiritual authority.
+
+### 5. The relationship between ritual purity and ecological conservation
+
+What makes these accounts especially interesting is that ritual purity and environmental protection are closely connected.
+
+The prohibition against bringing a soot-blackened pot to a sacred pool establishes a rule about how humans may interact with water.
+
+Aschwanden's account extends this to restrictions against making excessive noise or describing the water as dirty.
+
+These prohibitions help establish an ethic of respectful behaviour around sacred water sources.
+
+However, Lilford does not explicitly argue that every prohibition has a scientifically measurable conservation benefit.
+
+His main concern is the symbolic and cultural significance of the rules.
+
+The ecological interpretation is that sacredness can regulate human behaviour toward water, even when the reasons for those regulations are expressed spiritually rather than scientifically.
+
+### 6. Water can withdraw from human relationships
+
+Perhaps the most compelling idea is that water is not necessarily understood as permanently available to humans.
+
+In these narratives, the continued existence of water depends upon the presence of its spiritual guardians.
+
+If humans violate the conditions governing sacred waters, njuzu may depart.
+
+The water may subsequently disappear.
+
+This creates a different understanding of environmental degradation.
+
+Rather than viewing the drying of a river exclusively as a physical process, the tradition interprets it as a possible consequence of broken relationships between humans, water and spiritual beings.
+
+The disappearance of water therefore carries ecological, social and spiritual significance.
+
+This interpretation is particularly relevant to the questions you are exploring in Chimanimani about sacred places, environmental degradation and the erosion of Indigenous ecological knowledge.
+
+---
+
+### Page 212 - Ancestral territories, rainfall and displacement
+
+Lilford draws on David Lan's Guns and Rain (1985/1986) to explain how rainfall is connected to ancestral belonging and relationships with the land.
+
+Among some Korekore communities, drought is understood as a consequence of displacement from ancestral territories. Ancestors buried in their homeland maintain spiritual relationships with that land and can intercede for rainfall.
+
+In Dziva reNjuzu, Nhamoinenharo and Mudyazvokupara leave their homeland after conflict with Mudyandigere. Their original territory continues receiving rain and produces abundant grain, while their new settlement experiences severe drought.
+
+Lilford interprets this contrast through the idea of ritual intimacy with the land: communities possess particular spiritual relationships with ancestral territories that cannot automatically be transferred when they migrate.
+
+Key concept: Displacement can involve not only the loss of land but also the disruption of ancestral relationships that sustain ecological wellbeing. 
+
+### Page 214 - Zvichapera, divination and restoring social harmony
+
+Following Fungai's disappearance, her father, Mudyandigere, assumes that Nhamoinenharo is responsible. Driven by anger, he destroys Nhamoinenharo's property and attacks his family.
+
+His wife, Zvichapera, argues that disputes should be resolved through traditional institutions rather than violence.
+
+She persuades Mudyandigere to consult Hakata, a traditional healer and diviner (n'anga), who reveals that Fungai was actually taken by njuzu.
+
+This establishes Nhamoinenharo's innocence.
+
+However, Mudyandigere refuses to acknowledge his wrongdoing. Nhamoinenharo subsequently brings the dispute before the chief's court (dare).
+
+Mudyandigere's continued aggression undermines his defence, and the court orders him to compensate Nhamoinenharo.
+
+Key concept: The narrative connects spiritual knowledge, divination and traditional governance. The n'anga establishes what happened through divination, while the chief's court restores justice through compensation.
+
+Zvichapera plays a crucial role in restoring harmony by insisting on restraint, consultation and established cultural procedures. 
+
+### Page 218 - Njuzu as custodians of traditional knowledge
+
+In his conclusion, Lilford returns to Fungai's initiation.
+
+The njuzu takes Fungai, a young girl approaching puberty, into its underwater world and trains her in traditional healing.
+
+Lilford interprets this transformation as the transmission of cultural knowledge across generations.
+
+The njuzu is therefore not simply a supernatural being but also a guardian of ritual purity and a transmitter of traditional knowledge.
+
+The novel presents the possibility of social renewal through respect for inherited knowledge, traditional institutions and relationships of mutual responsibility.
+
+Key concept: Knowledge transmission and social harmony are interconnected. Spiritual beings, traditional healers, community institutions and trusted relationships all contribute to maintaining cultural continuity. 
+
+---
