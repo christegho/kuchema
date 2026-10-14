@@ -3,13 +3,21 @@ CREATIVE IMAGE-GENERATION PROMPT
 
 1. CREATIVE PURPOSE
 
-Generate speculative photographic collages rooted in Chikukwa, Chimanimani, Zimbabwe. Bring the project's photographs, community knowledge, water cosmologies, mythological narratives and ecological futures into imaginative relationships. The images should move beyond rearranging existing photographs, work from the approved photographic archive, research TXT files, academic papers and youth climate-futures collages. Let these sources shape how images are constructed, rather than simply supplying symbols to illustrate. Follow Chipo's creative direction and preserve the ownership and control of original contributors.
+Generate speculative photographic collages rooted in Chikukwa, Chimanimani, Zimbabwe. Bring the project's photographs, community knowledge, water cosmologies, mythological narratives and ecological futures into imaginative relationships. The images should move beyond rearranging existing photographs, while referencing the style of Chipo Mapondera's own collages in the project archive.
+
+Work from the approved photographic archive, research TXT files, academic papers and youth climate-futures collages. Let these sources shape how images are constructed, rather than simply supplying symbols to illustrate. Follow Chipo's creative direction and reference the ownership of original creators.
 
 2. VISUAL LANGUAGE
 
+Primary style reference: Chipo Mapondera's collages in:
+/Users/chipo/Documents/kuchema-the-gathering/ai-development/kuchema/archive
+(~/Documents/kuchema-the-gathering/ai-development/kuchema/archive)
+
+Review the artist's collages in this folder before developing visual prompts. Use their composition, layering, cut-out treatment, colour relationships, spatial experimentation and visual rhythm to guide new outputs. Distinguish the artist's finished collages from source photographs and other archive material. The three supplied AI examples show the current system's output; they should not replace the artist's work as the primary stylistic reference. Create new compositions rather than copies of individual works.
+
 Preserve photographic cut-outs, overlapping landscapes, visible collage edges, abrupt changes of scale, fragmented perspectives and purposeful gaps. Keep the textures of water, rock, soil, vegetation and contemporary clothing. Allow different lighting and viewpoints to coexist. The image should remain visibly assembled rather than becoming a seamless fantasy painting.
 
-Introduce newly generated fragments and external imagery that transform the relationships within the composition. A photographed pool might open onto an imagined root chamber; mountain contours might recur inside clouds; microscopic organisms might occupy landscape scale. Each addition should deepen the image rather than decorate it.
+Introduce newly generated fragments and externally discovered imagery that transform the relationships within the composition. A photographed pool might open onto an imagined root chamber; mountain contours might recur inside clouds; microscopic organisms might occupy landscape scale. Each addition should deepen the image rather than decorate it.
 
 Vary compositions: dense gatherings, sparse landscapes, ecological constellations, interrupted horizons and movements between earth, water and sky. Not every image can include people, water beings or recognisable mythological symbols layered with botanical, geological, microscopic, abstract and cosmic elements.
 
@@ -37,29 +45,35 @@ Draw on youth proposals for planting along rivers, reducing veld fires, planned 
 
 4. IMAGE DISCOVERY AND REUSE
 
-Maintain separate inspiration references and approved production assets. Finding an image, crediting its creator or altering it does not establish permission to reuse it.
+Explore a broad range of online imagery rather than limiting discovery to open-access or pre-cleared collections. External photography, illustration, scientific imagery and artists' work can introduce unexpected layers and relationships. Choose material for its creative relevance and retain its origin throughout the workflow.
+
+Also maintain separate inspiration references and approved production assets.
 
 National Geographic — https://www.nationalgeographic.com/
-Use for inspiration concerning ecosystems, water, geology and unusual natural phenomena. Incorporate photographs only with appropriate rights-holder permission. National Geographic's permission guidance currently directs enquiries to original creators; do not assume it offers image licences.
+Discover ecosystems, water bodies, underwater environments, geology, atmospheric phenomena, unusual natural phenomena and extraordinary natural details. Incorporate photographs only with appropriate rights-holder permission. National Geographic's permission guidance currently directs enquiries to original creators; do not assume it offers image licences.
 
 Pinterest — https://www.pinterest.com/
-Use to discover compositions and original creators. Follow Pins to their original sources. A Pin or board is not a reuse licence. If ownership and permission cannot be established, keep the image out of production.
+Use to discover compositions, photographic juxtapositions and original creators. Follow Pins to their original sources. Follow Pins to original sources wherever possible; distinguish the creator from the person reposting an image. If ownership and permission cannot be established, keep the image out of production.
 
 Wikimedia Commons — https://commons.wikimedia.org/
-Find landscapes, botanical imagery, microscopy and historical illustrations. Check each file's creator, original source and exact licence. Meet attribution and adaptation requirements; review share-alike compatibility before inclusion.
+Find landscapes, botanical imagery, microscopy and historical illustrations. Check each file's creator, original source and exact licence. Provide asset-level source and licence information.
 
 NASA — https://images.nasa.gov/
 Find Earth observation, clouds, planetary textures and astronomical material. Check asset credits and NASA's media-use guidelines, including third-party content restrictions. Do not imply NASA endorsement.
 
 Smithsonian Open Access — https://www.si.edu/openaccess
-Use natural-history specimens and archival imagery explicitly marked CC0. Open metadata does not automatically mean the associated image is reusable. Check cultural sensitivity separately.
+Use natural-history specimens, archival imagery and collection objects, explicitly marked CC0. Open metadata does not automatically mean the associated image is reusable. Check cultural sensitivity separately, retaining their catalogue records and cultural context.
 
 Biodiversity Heritage Library — https://www.biodiversitylibrary.org/
 Find botanical and zoological plates. Verify each work's rights: the collection includes restricted material as well as public-domain works. Preserve publication and illustrator details.
 
+These are starting points, not a closed list. Welcome additional archives, photographers, artists and direct collaborations. Keep a distinction between images consulted as inspiration and images actually incorporated or used as generation inputs. 
+
 Prefer clearly cleared public-domain, CC0 or compatible licensed assets. Permission must cover the intended adaptation, exhibition and publication. Do not assume permission to display also permits model training or image conditioning. Inspiration-only images must not be copied, traced or supplied to a generative model without clearance.
 
 5. ATTRIBUTION AND PROVENANCE
+
+Develop Image Source as a visible part of the artwork and a possible foundation for a sharing economy. Let visitors discover the contributors whose work enters a collage, follow links to their practice and understand how different images meet. Explore ways for artists to participate, be recognised and receive payment through agreed licences, commissions, fees or revenue-sharing arrangements. These are opportunities to develop, not promises that every use is already compensated.
 
 For every incorporated image, retain: asset ID, title, creator, rights holder where known, original source URL, licence name/version and URL, acquisition date, permission evidence and changes made. Record external location and species where relevant; do not mislabel outside imagery as Chikukwa documentation.
 
