@@ -6,7 +6,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import {createStore} from '../server/store.js';
 import {inspectCut} from '../server/crops.js';
-import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS,transformImage,restrainTreatments} from '../server/transforms.js';
+import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS,transformImage,treatedImage,treatedCut,restrainTreatments} from '../server/transforms.js';
 import {creationInput,advanceFor} from '../server/plan.js';
 import {coverageReader,fillComposition,COMPOSITION_LIMITS} from '../server/coverage.js';
 
@@ -51,14 +51,47 @@ test('treatment selection supports all-off, rejects unknown effects, and constra
  const schema=advanceFor([],job,6).shape.images.shape;
  assert.equal(schema.F01.shape.transform.shape.type.value,'none');
  const selected=advanceFor([],creationInput.parse({...base,enabledTransforms:['reflection-echo']}),6).shape.images.shape;
- assert.deepEqual(selected.F01.shape.transform.shape.type.options,['none','reflection-echo']);
+ // Generated slots must carry a visible enabled treatment, never none or a token strength.
+ assert.deepEqual(selected.F01.shape.transform.shape.type.options,['reflection-echo']);
+ assert.equal(selected.F01.shape.transform.safeParse({type:'reflection-echo',strength:.3,reason:'Too faint'}).success,false);
+ assert.equal(selected.F01.shape.transform.safeParse({type:'none',strength:.1,reason:'Untreated'}).success,false);
 });
-test('restraint uses at most two treatments on a minority of generated fragments and rejects excluded effects',()=>{
- const images=Array.from({length:8},(_,i)=>({key:`F${i}`,sourceId:null,transform:{type:['water-flow','sediment-wash','contour-etch'][i%3],strength:1-i*.02,reason:'Water and soil'}}));
- const job={transformations:true,recolouring:true,enabledTransforms:['water-flow','sediment-wash','contour-etch']};
- const adjustments=restrainTreatments({images},job),treated=images.filter(i=>i.transform.type!=='none');
- assert.ok(adjustments.length);assert.equal(treated.length,3);assert.equal(new Set(treated.map(i=>i.transform.type)).size,2);
- assert.throws(()=>restrainTreatments({images:[{key:'F1',sourceId:null,transform:{type:'reflection-echo',strength:.2}}]},job),/disabled/);
+test('every generated fragment keeps a treatment; a fourth kind folds into the strongest chosen kind',()=>{
+ const job={transformations:true,recolouring:true,enabledTransforms:['water-flow','sediment-wash','contour-etch','print-grain']};
+ const three=Array.from({length:8},(_,i)=>({key:`F${i}`,sourceId:null,transform:{type:['water-flow','sediment-wash','contour-etch'][i%3],strength:1-i*.02,reason:'Water and soil'}}));
+ assert.deepEqual(restrainTreatments({images:three},job),[]);assert.ok(three.every(i=>i.transform.type!=='none'));
+ const four=Array.from({length:8},(_,i)=>({key:`F${i}`,sourceId:null,transform:{type:job.enabledTransforms[i%4],strength:1-i*.02,reason:'Water and soil'}}));
+ const adjustments=restrainTreatments({images:four},job);
+ assert.equal(adjustments.length,2);assert.ok(four.every(i=>i.transform.type!=='none'));
+ assert.equal(new Set(four.map(i=>i.transform.type)).size,3);assert.ok(four.filter(i=>adjustments.some(a=>a.key===i.key)).every(i=>i.transform.type==='water-flow'));
+ assert.throws(()=>restrainTreatments({images:[{key:'F1',sourceId:'person',transform:{type:'water-flow',strength:.7,reason:''}}]},job),/archive person/);
+ assert.throws(()=>restrainTreatments({images:[{key:'F1',sourceId:null,transform:{type:'posterize',strength:.7,reason:''}}]},job),/disabled/);
+});
+test('every treatment visibly changes textured material at a planned strength',async t=>{
+ const W=240,H=160,data=Buffer.alloc(W*H*4);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=(y*W+x)*4,check=((x>>3)+(y>>3))%2;data[i]=check?190:50+x%60;data[i+1]=check?150:80+y%50;data[i+2]=check?70:120;data[i+3]=255;}
+ const store=await fixture(t),bytes=await sharp(data,{raw:{width:W,height:H,channels:4}}).png().toBuffer(),source=await store.addImage(bytes,'texture.png',{kind:'generated',allowTransform:true});
+ const before=await sharp(bytes).removeAlpha().raw().toBuffer();
+ for(const option of TRANSFORM_OPTIONS){
+  const {image}=await treatedImage(store,source,{type:option.id,strength:.6,palette:'#183f3b #68764a #9c6b40 #d6c8a5'}),after=await image.removeAlpha().raw().toBuffer();
+  let difference=0;for(let i=0;i<after.length;i++)difference+=Math.abs(after[i]-before[i]);
+  // Mean absolute change per channel; the earlier restrained settings stayed below 2 for six treatments.
+  assert.ok(difference/after.length>=3.5,`${option.id}: ${(difference/after.length).toFixed(1)}`);
+ }
+});
+test('segment, treat, crop: a treated cut keeps the SAM alpha and matches the treated full image',async t=>{
+ const store=await fixture(t),bytes=await pattern(),source=await store.addImage(bytes,'texture.png',{kind:'generated',allowTransform:true});
+ const mask=Buffer.from('<svg width="120" height="80"><ellipse cx="70" cy="45" rx="30" ry="20" fill="white"/></svg>'),cropBox=[40,25,100,65];
+ const file=path.join(store.root,'cut.png');await sharp(await sharp(path.join(store.root,'media',`${source.id}.png`)).ensureAlpha().composite([{input:mask,blend:'dest-in'}]).png().toBuffer()).extract({left:40,top:25,width:60,height:40}).png().toFile(file);
+ const cut={file,cropBox},transform={type:'sediment-wash',strength:.8,reason:'Soil carried by water',palette:'#183f3b #9c6b40'};
+ const treated=await treatedCut(store,source,cut,transform);
+ assert.equal(treated.transform.type,'sediment-wash');assert.equal(treated.transform.effectiveStrength,.8);assert.equal(treated.transform.simulated,true);
+ const [raw,result]=await Promise.all([sharp(file).raw().toBuffer(),sharp(treated.bytes).raw().toBuffer()]);
+ const expected=await (await treatedImage(store,source,transform)).image.extract({left:40,top:25,width:60,height:40}).removeAlpha().raw().toBuffer();
+ for(let i=0,j=0;i<result.length;i+=4,j+=3){assert.equal(result[i+3],raw[i+3]);for(let c=0;c<3;c++)assert.equal(result[i+c],expected[j+c]);}
+ assert.deepEqual(await treatedCut(store,source,cut,{type:'none',strength:.1}),{bytes:await fs.readFile(file),transform:null});
+ await assert.rejects(treatedCut(store,source,{file,cropBox:[0,0,60,41]},transform),/crop box/);
+ await assert.rejects(treatedCut(store,{...source,kind:'source',archive:{category:'people'}},cut,transform),/not permitted/);
 });
 test('a fully covered stack is detected and repaired instead of accepting a dominant top image',async t=>{
  const store=await fixture(t),materials=[];

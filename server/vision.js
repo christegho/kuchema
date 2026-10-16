@@ -16,7 +16,7 @@ export class VisionWorker {
   async call(body){
     if(!await this.available())throw new Error('Local segmentation models are not installed. Run npm run setup:vision before creating an image.');
     if(!this.child){
-      this.child=spawn(path.resolve(process.env.VISION_PYTHON||'.venv/bin/python'),[path.resolve('scripts/vision-worker.py')],{stdio:['pipe','pipe','pipe'],env:{...process.env,PYTHONUNBUFFERED:'1'}});
+      this.child=spawn(path.resolve(process.env.VISION_PYTHON||'.venv/bin/python'),[path.resolve('scripts/vision-worker.py')],{stdio:['pipe','pipe','pipe'],env:{...process.env,PYTHONUNBUFFERED:'1',PYTORCH_ENABLE_MPS_FALLBACK:'1'}});
       let errors='';this.child.stderr.on('data',d=>{errors=(errors+d.toString()).slice(-1500);});
       createInterface({input:this.child.stdout}).on('line',line=>{try{const value=JSON.parse(line),p=this.pending.get(value.id);if(!p)return;clearTimeout(p.timer);this.pending.delete(value.id);value.error?p.reject(new Error(value.error)):p.resolve(value.result);}catch{}});
       const failed=()=>{this.child=null;for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(new Error(`Segmentation worker stopped. ${errors.slice(-400)}`));}this.pending.clear();};

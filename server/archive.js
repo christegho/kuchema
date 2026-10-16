@@ -1,4 +1,5 @@
 import {randomInt} from 'node:crypto';
+import {MIN_TEXTS} from './research.js';
 
 export function archiveCategory(relativePath) {
   const parts=relativePath.replaceAll('\\','/').toLowerCase().split('/');
@@ -15,8 +16,9 @@ export function shuffled(items,random=randomInt) {
 }
 
 // Counts refer to distinct photographs, not the number of figures within a photo.
+// People leave room for every speculative text to lead its own generated image.
 export function archiveCounts(count) {
-  return {general:Math.max(2,Math.ceil(count/3)),water:Math.max(2,Math.ceil(count/3)),composition:1,people:Math.min(8,Math.max(4,Math.round(count*.4)))};
+  return {general:Math.max(2,Math.ceil(count/3)),water:Math.max(2,Math.ceil(count/3)),composition:1,people:Math.min(8,Math.max(4,Math.round(count*.4)),count-MIN_TEXTS)};
 }
 
 export function selectOfficialArchive(assets,job,random=randomInt) {

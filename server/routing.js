@@ -1,7 +1,16 @@
 import {randomInt} from 'node:crypto';
 import {TOKEN_PRICE_LIMIT,compareProviderHealth} from './budget.js';
-import {retryableProviderError} from './ai.js';
+import {RouterError,retryableProviderError,parseJsonResponse} from './ai.js';
 import {providerImageLimit,requestImageCount} from './provider-limits.js';
+
+// A JSON answer cut off at its output limit, or one that does not parse, cannot be
+// used. The call is already paid and settled; another provider may still answer.
+export function unusableAnswer(result,body,provider){
+  if(!body.response_format)return null;
+  const choice=result?.choices?.[0],source=provider?` from ${provider}`:'';
+  if(choice?.finish_reason==='length'||['length','max_tokens','MAX_TOKENS'].includes(choice?.native_finish_reason))return new RouterError(`The answer${source} stopped at its ${body.max_tokens}-token output limit before it was complete.`,{status:200,code:'TRUNCATED',provider});
+  try{parseJsonResponse(result);return null;}catch{return new RouterError(`The answer${source} was not valid JSON.`,{status:200,code:'MALFORMED_JSON',provider});}
+}
 
 export async function routedTextCall({job,budget,quote,label,body,request,persist,unavailable=new Set()}){
   const imageCount=requestImageCount(body);
@@ -9,7 +18,8 @@ export async function routedTextCall({job,budget,quote,label,body,request,persis
     // Retain compatibility with saved quotes/test adapters from before provider pools.
     if(imageCount>providerImageLimit(body.model,quote.provider))throw new Error(`The quoted provider cannot accept ${imageCount} input images. No request was sent.`);
     const provider={max_price:TOKEN_PRICE_LIMIT,allow_fallbacks:false,require_parameters:true,...(quote.provider?{only:[quote.provider]}:{})};
-    return budget.call(label,body.model,quote.bound,()=>request('chat/completions',{...body,provider}));
+    const result=await budget.call(label,body.model,quote.bound,()=>request('chat/completions',{...body,provider})),unusable=unusableAnswer(result,body,quote.provider);
+    if(unusable)throw unusable;return result;
   }
   const candidates=quote.candidates.filter(candidate=>imageCount<=providerImageLimit(body.model,candidate.provider));
   if(!candidates.length)throw new Error(`No checked provider supports this step's ${imageCount} input images. No request was sent.`);
@@ -24,6 +34,7 @@ export async function routedTextCall({job,budget,quote,label,body,request,persis
     job.providerAttempts||=[];job.providerAttempts.push(attempt);
     try{
       const result=await budget.call(`${label} · ${candidate.name||candidate.provider}`,body.model,candidate.bound,()=>request('chat/completions',{...body,provider}));
+      const unusable=unusableAnswer(result,body,candidate.provider);if(unusable)throw unusable;
       attempt.status='complete';attempt.actualProvider=result.provider||candidate.provider;
       if(index>0){job.warnings||=[];job.warnings.push(`${label} continued with ${attempt.actualProvider} after another provider failed.`);}
       await persist();return result;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Budget} from '../server/budget.js';
+import {Budget,MAX_COST} from '../server/budget.js';
 import {RouterError,REQUEST_DEADLINE_MS,routerRequest,retryableProviderError,parseJsonResponse} from '../server/ai.js';
 import {routedTextCall} from '../server/routing.js';
 
@@ -82,11 +82,27 @@ test('fetch header and body timeouts are retryable timeouts; a dropped body is s
  await assert.rejects(routerRequest('chat/completions',body),error=>!(error instanceof RouterError)&&retryableProviderError(error));
 });
 
-test('invalid JSON inside a readable model answer is distinct from a broken API response',async t=>{
+test('an answer cut off at its output limit or left as malformed JSON fails over to the next provider',async t=>{
  const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
- let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({choices:[{message:{content:'{"incomplete":'}}],usage:{cost:.001}});});
- const f=fixture(routerRequest),result=await routedTextCall(f.args);
- assert.throws(()=>parseJsonResponse(result),/incomplete plan/);assert.equal(calls,1);assert.equal(f.job.ledger[0].status,'complete');
+ const quote={candidates:[{...candidates[0],provider:'parasail/fp8',name:'Parasail'},{...candidates[1],provider:'deepinfra/fp8',name:'DeepInfra'}]};
+ const body={model:'qwen/test',messages:[],max_tokens:11000,response_format:{type:'json_object'}};
+ const truncated={choices:[{finish_reason:'length',native_finish_reason:'length',message:{content:'{"images":{"F01":{'}}],usage:{cost:.002}};
+ for(const [first,code,message] of [[truncated,'TRUNCATED',/parasail\/fp8 stopped at its 11000-token output limit/],[{choices:[{finish_reason:'stop',message:{content:'{"incomplete":'}}],usage:{cost:.002}},'MALFORMED_JSON',/parasail\/fp8 was not valid JSON/]]){
+  let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json(calls===1?first:{provider:'DeepInfra',choices:[{finish_reason:'stop',message:{content:'{"title":"Complete"}'}}],usage:{cost:.001}});});
+  const f=fixture(routerRequest),result=await routedTextCall({...f.args,quote,body});
+  assert.equal(calls,2);assert.deepEqual(parseJsonResponse(result),{title:'Complete'});
+  // The cut-off answer was paid and settled; its attempt is still recorded as failed.
+  assert.deepEqual(f.job.ledger.map(r=>[r.status,r.actual]),[['complete',.002],['complete',.001]]);
+  const failed=f.job.providerAttempts[0];assert.equal(failed.status,'failed');assert.equal(failed.code,code);assert.match(failed.error,message);
+ }
+ let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json(truncated);});
+ const f=fixture(routerRequest);
+ await assert.rejects(routedTextCall({...f.args,quote,body}),error=>error.code==='TRUNCATED'&&/deepinfra\/fp8 stopped at its 11000-token output limit/.test(error.message));
+ assert.equal(calls,2);
+ // Requests that do not ask for JSON are returned as they are.
+ const plain=fixture(async()=>({choices:[{finish_reason:'length',message:{content:'partial'}}],usage:{cost:.001}}));
+ assert.equal((await routedTextCall(plain.args)).choices[0].message.content,'partial');
+ assert.throws(()=>parseJsonResponse({choices:[{message:{content:'{"incomplete":'}}]}),/malformed JSON/);
 });
 
 test('oversized visual requests skip Venice without charging or dropping references',async()=>{
@@ -151,7 +167,7 @@ test('auth, credit, invalid-input and malformed-content errors never trigger pro
 
 test('temporary upstream and network failures qualify, but failover stops when cancelled',async()=>{
  for(const code of [404,408,429,500,502,503,504])assert.ok(retryableProviderError(new RouterError('Temporary',{status:code,code})));
- assert.ok(retryableProviderError(new RouterError('Did not finish',{status:200,code:'TIMEOUT'})));
+ for(const code of ['TIMEOUT','TRUNCATED','MALFORMED_JSON'])assert.ok(retryableProviderError(new RouterError('Unusable answer',{status:200,code})));
  assert.ok(retryableProviderError(Object.assign(new Error('timeout'),{name:'TimeoutError'})));
  assert.ok(retryableProviderError(new TypeError('fetch failed',{cause:{code:'ECONNRESET'}})));
  let calls=0;const f=fixture(async()=>{calls++;f.job.cancelRequested=true;throw new RouterError('Rate limited',{code:429});});
@@ -161,12 +177,12 @@ test('temporary upstream and network failures qualify, but failover stops when c
 test('all-provider failures retain reservations and stop at the checked attempt count',async()=>{
  let calls=0;const f=fixture(async()=>{calls++;throw new RouterError('Unavailable',{code:503});});
  await assert.rejects(routedTextCall(f.args),/Unavailable/);assert.equal(calls,2);assert.equal(f.args.budget.committed,.1);
- await assert.rejects(f.args.budget.reserve('too large','model',.91),/exceed/);
+ await assert.rejects(f.args.budget.reserve('too large','model',MAX_COST-.09),/exceed/);
 });
 
 test('provider failover cannot bypass the budget guard',async()=>{
  let calls=0;const f=fixture(async()=>{calls++;throw new RouterError('Rate limited',{code:429});});
- await f.args.budget.reserve('previous work','model',.94);
+ await f.args.budget.reserve('previous work','model',MAX_COST-.06);
  await assert.rejects(routedTextCall(f.args),/exceed/);assert.equal(calls,1);assert.equal(f.job.ledger.length,2);
 });
 

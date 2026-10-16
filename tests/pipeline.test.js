@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
-import {CreationPipeline,compositionWarnings,normalizedBox,selectGenerationReferences} from '../server/pipeline.js';
+import {CreationPipeline,bounded,compositionWarnings,normalizedBox,selectGenerationReferences} from '../server/pipeline.js';
 import {normalizeObservations} from '../server/direction.js';
 import {creationInput,validateAdvance} from '../server/plan.js';
 import {createStore} from '../server/store.js';
@@ -35,15 +35,16 @@ async function fixture(t,n=5){
  const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-only';t.after(()=>{if(old)process.env.OPENROUTER_API_KEY=old;else delete process.env.OPENROUTER_API_KEY;});return store;
 }
 function direction(archive,job,generatedCount,referenceArchive=archive){
- return {...(job.localResearch?{researchComposition:{sourceIds:job.localResearch.map(d=>d.id),direction:'Layer the water pathways across the soil contours, using recurrence and offset scales from the supplied research.'}}:{}),title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
+ return {...(job.localResearch?{researchComposition:{sourceIds:job.localResearch.map(d=>d.id),direction:'Layer the water pathways across the soil contours, using recurrence and offset scales from the supplied research.',papers:Object.fromEntries(job.localResearch.filter(d=>d.relativePath.split('/').includes('papers')).map(d=>[d.id,'Broad environmental fields sit low while smaller cuts recur upward, as the paper describes water moving between levels.']))}}:{}),title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
   const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):generationIndex<2?'environment':'material';
   return {...(job.localResearch?{researchIds:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]||[],researchIntent:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]?'The documented relationships between water and land become an interlocking mineral surface.':''}:{}),key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
  })};
 }
 function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
- let plan;return async(endpoint,body)=>{
+ let plan,images=0;return async(endpoint,body)=>{
   onBody(endpoint,body);
-  if(endpoint==='images')return {data:[{b64_json:(await sharp({create:{width:1600,height:1000,channels:3,background:{r:100+store.state.assets.length,g:150,b:200}}}).png().toBuffer()).toString('base64')}],usage:{cost:.04}};
+  // Distinct gradients: treatments must have tonal variation to act on.
+  if(endpoint==='images'){const r=100+(images++%150),svg=`<svg width="1600" height="1000"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="rgb(${r},150,200)"/><stop offset="1" stop-color="rgb(30,70,${r})"/></linearGradient></defs><rect width="1600" height="1000" fill="url(#g)"/></svg>`;return {data:[{b64_json:(await sharp(Buffer.from(svg)).png().toBuffer()).toString('base64')}],usage:{cost:.04}};}
   const stage=body.response_format.json_schema?.name;
   if(stage==='advance_collage_plan'){
    const data=JSON.parse(body.messages[1].content[0].text);
@@ -133,6 +134,31 @@ test('a failed SAM cut still publishes a partial study and can retry only that l
  const part=job.failedParts[0];assert.equal(job.workingImages.find(w=>w.key===part.key).assetId,path.basename(failedPath,'.png'));
  const retried=await pipeline.retryPart(job.id,part.key);
  assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);assert.ok(retried.outputUrl);
+ // The retried cut receives the planned treatment with the plan's palette.
+ const planned=job.plan.images.find(i=>i.key===part.key).transform,fragment=()=>store.state.assets.find(a=>a.id===retried.materials.find(m=>m.key===part.key).assetId);
+ assert.notEqual(planned.type,'none');assert.equal(fragment().derived.transform.type,planned.type);assert.equal(fragment().derived.transform.palette,job.plan.palette);
+ // Studies saved before segment → treat → crop already hold treated working images; they are never treated twice.
+ delete job.workingImages.find(w=>w.key===part.key).treatAfterCut;await pipeline.retryPart(job.id,part.key);
+ assert.equal(fragment().derived.transform,undefined);
+});
+
+test('image generation runs at most two calls at a time, keeps plan order and stops launching after a failure',async t=>{
+ let active=0,peak=0;
+ const results=await bounded([1,2,3,4,5],2,async n=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,(6-n)*3));active--;return n*10;});
+ assert.deepEqual(results,[10,20,30,40,50]);assert.equal(peak,2);
+ const launched=[];let finished=0;
+ await assert.rejects(bounded([1,2,3,4,5],2,async n=>{launched.push(n);if(n===2)throw new Error('image failed');await new Promise(r=>setTimeout(r,10));finished++;}),/image failed/);
+ assert.deepEqual(launched,[1,2]);assert.equal(finished,1);
+ const store=await officialFixture(t),base=requestDouble(store),prompts=[];let inFlight=0,most=0;
+ const request=async(endpoint,body)=>{if(endpoint!=='images')return base(endpoint,body);prompts.push(body.prompt);inFlight++;most=Math.max(most,inFlight);await new Promise(r=>setTimeout(r,20));try{return await base(endpoint,body);}finally{inFlight--;}};
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request}),job=await pipeline.start(input({count:10}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(most,2);assert.equal(prompts.length,6);
+ assert.deepEqual(job.workingImages.map(w=>w.key),job.plan.images.map(i=>i.key));
+ for(const item of job.plan.images.filter(i=>!i.sourceId)){
+  const asset=store.state.assets.find(a=>a.id===job.workingImages.find(w=>w.key===item.key).assetId);
+  assert.ok(asset.generation.prompt.includes(item.prompt));assert.match(asset.generation.prompt,/speculative photograph/);
+  assert.equal(/Speculative source/.test(asset.generation.prompt),Boolean(job.researchAssignments[item.key]),item.key);
+ }
 });
 test('a local segmentation timeout retries once, then saves only that part for a later retry',async t=>{
  const store=await fixture(t,6);let failedPath='',allowRetry=false,fallbackCalls=0;
@@ -211,7 +237,7 @@ test('pre-crop transformations preserve originals, enforce permissions and recor
  a.allowTransform=true;const changed=await transformImage(store,a,{type:'posterize',strength:.5,reason:'Material transfer'});
  assert.equal(changed.rootId,a.id);assert.equal(changed.derived.operation,'transform');assert.notEqual(changed.hash,a.hash);assert.deepEqual(await fs.readFile(path.join(store.root,'media',a.id+'.png')),before);
  const recoloured=await transformImage(store,a,{type:'recolour',strength:.65,reason:'Relate water and soil',palette:'#173f3b #9c6b40 #d6c8a5'});
- assert.notEqual(recoloured.hash,a.hash);assert.equal(recoloured.derived.transform.type,'recolour');assert.equal(recoloured.derived.transform.effectiveStrength,.5);
+ assert.notEqual(recoloured.hash,a.hash);assert.equal(recoloured.derived.transform.type,'recolour');assert.equal(recoloured.derived.transform.effectiveStrength,.65);
  const flowed=await transformImage(store,a,{type:'water-flow',strength:.55,reason:'Let water movement shape the material'});
  assert.notEqual(flowed.hash,a.hash);assert.equal(flowed.derived.transform.type,'water-flow');
 });
@@ -243,7 +269,7 @@ for(const count of [6,20])test(`official archive: ${count} components use random
  const pipeline=new CreationPipeline(store,{prices,vision:{...fakeVision,request:async r=>{if(r.action==='segment')segments.push(r);return fakeVision.request(r);}},request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
  const job=await pipeline.start(input({count}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);
- assert.equal(job.archiveSelection.people.length,count===6?4:8);
+ assert.equal(job.archiveSelection.people.length,count===6?3:8);
  assert.equal(job.archiveSelection.general.length,count===6?2:7);
  assert.equal(job.archiveSelection.water.length,count===6?2:7);
  assert.equal(job.archiveSelection.composition.length,1);
@@ -285,14 +311,27 @@ test('planner cannot substitute generated people or change official reference pa
 });
 
 for(const enabledTransforms of [[],['reflection-echo']])test(`official pipeline honors the exact enabled treatment list: ${enabledTransforms.join(',')||'all off'}`,async t=>{
- const store=await officialFixture(t);
- const pipeline=new CreationPipeline(store,{vision:fakeVision,prices,request:requestDouble(store)});
+ const store=await officialFixture(t),rawCuts=new Map();
+ // Keep each untreated SAM cut before the pipeline removes its work folder.
+ const vision={...fakeVision,request:async r=>{const result=await fakeVision.request(r);if(r.action==='segment')for(const cut of result.cuts)rawCuts.set(r.path,await fs.readFile(cut.file));return result;}};
+ const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store)});
  const job=await pipeline.start(input({enabledTransforms}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);
  assert.ok(job.plan.images.every(i=>i.transform.type==='none'||enabledTransforms.includes(i.transform.type)));
- assert.ok(job.workingImages.every(i=>i.transform.type==='none'||enabledTransforms.includes(i.transform.type)));
- assert.ok(job.plan.images.filter(i=>i.transform.type!=='none').length<=1);
+ assert.ok(job.workingImages.every(i=>i.treatAfterCut&&(i.transform.type==='none'||enabledTransforms.includes(i.transform.type))));
+ // Every generated part carries one visible treatment when any is enabled; people never do.
+ assert.ok(job.plan.images.every(i=>i.sourceId?i.transform.type==='none':i.transform.type===(enabledTransforms[0]||'none')));
  assert.equal(job.plan.images.filter(i=>!i.sourceId&&i.role==='environment').length,2);
+ // Segment → treat → crop: SAM sees untreated images; each fragment keeps the SAM alpha exactly.
+ for(const m of job.materials){
+  const working=job.workingImages.find(w=>w.key===m.key),source=store.state.assets.find(a=>a.id===working.assetId),fragment=store.state.assets.find(a=>a.id===m.assetId);
+  assert.equal(source.derived,undefined);const raw=rawCuts.get(path.join(store.root,'media',`${source.id}.png`));assert.ok(raw);
+  const [before,after]=await Promise.all([raw,path.join(store.root,'media',`${fragment.id}.png`)].map(f=>sharp(f).ensureAlpha().raw().toBuffer()));
+  let alphaSame=true,rgbChanged=0;for(let i=0;i<before.length;i+=4){if(before[i+3]!==after[i+3])alphaSame=false;if(before[i+3]&&Math.abs(before[i]-after[i])+Math.abs(before[i+1]-after[i+1])+Math.abs(before[i+2]-after[i+2])>6)rgbChanged++;}
+  assert.ok(alphaSame,m.key);
+  const treated=working.transform.type!=='none';assert.equal(fragment.derived.transform?.type,treated?working.transform.type:undefined);
+  assert.equal(rgbChanged>0,treated,m.key);
+ }
 });
 test('a segmenter returning whole photographs cannot paste them into an automatic collage',async t=>{
  const store=await officialFixture(t);
@@ -303,7 +342,7 @@ test('a segmenter returning whole photographs cannot paste them into an automati
  assert.ok(job.failedParts.every(p=>/almost whole rectangular/.test(p.error)));
 });
 
-for(const researchCount of [2,10])test(`research ${researchCount}: passages reach two image calls, composition review and saved provenance`,async t=>{
+for(const researchCount of [6,10])test(`research ${researchCount}: each speculative text leads an image call, papers shape the layout, and provenance is saved`,async t=>{
  const store=await fixture(t),calls=[];
  const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
  const job=await pipeline.start(input({includeArchive:false,includePeople:false,researchCount}));await pipeline.running;
@@ -314,7 +353,9 @@ for(const researchCount of [2,10])test(`research ${researchCount}: passages reac
   assert.match(direction,/exactly one image from collages-style-guide/);assert.match(direction,/only enabled treatments/);
  }
  const ids=job.researchDocuments.map(d=>d.id);assert.deepEqual(job.plan.researchComposition.sourceIds,ids);
- const researchParts=job.plan.images.filter(i=>job.researchAssignments[i.key]);assert.equal(researchParts.length,2);
+ const researchParts=job.plan.images.filter(i=>job.researchAssignments[i.key]),texts=job.researchDocuments.filter(d=>d.relativePath.includes('/scripts/')&&d.filename!=='water-rituals-for-combatting-pests.txt'),papers=job.researchDocuments.filter(d=>d.relativePath.includes('/papers/'));
+ assert.ok(texts.length>=3&&papers.length>=3);assert.equal(researchParts.length,Math.min(texts.length,job.requestedMaterials));
+ assert.ok(researchParts.every(i=>i.researchIds.length===1&&texts.some(d=>d.id===i.researchIds[0])));assert.deepEqual(Object.keys(job.plan.researchComposition.papers).sort(),papers.map(d=>d.id).sort());
  for(const part of researchParts){
   const asset=store.state.assets.find(a=>!a.derived&&a.generation?.researchIntent===part.researchIntent&&JSON.stringify(a.generation.researchIds)===JSON.stringify(part.researchIds));
   assert.ok(asset);assert.equal(asset.generation.localResearch.length,part.researchIds.length);
@@ -323,7 +364,7 @@ for(const researchCount of [2,10])test(`research ${researchCount}: passages reac
  }
  const review=calls.find(c=>c.body.response_format?.json_schema?.name==='collage_critique');
  const payload=JSON.parse(review.body.messages[1].content[0].text);assert.deepEqual(payload.localResearch.map(d=>d.id),ids);assert.deepEqual(payload.researchComposition,job.plan.researchComposition);
- assert.ok(job.researchCoverage);assert.equal(job.researchCoverage.required,2);
+ assert.ok(job.researchCoverage);assert.equal(job.researchCoverage.required,researchParts.length);
 });
 
 test('insufficient research fails before any paid calls',async t=>{

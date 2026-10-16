@@ -14,6 +14,7 @@ with contextlib.redirect_stdout(sys.stderr):
     settings.update({'sync': False})
     torch.set_num_threads(min(4, os.cpu_count() or 2))
     device = os.environ.get('VISION_DEVICE', 'cpu')
+    if device == 'auto': device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     detector = YOLO(str(root / 'models' / 'yolo11n.pt'))
     segmenter = SAM(str(root / 'models' / 'sam2.1_t.pt'))
 
@@ -70,18 +71,14 @@ def process(req):
             prompts_list=[{'box':d['box'],'point':[(d['box'][0]+d['box'][2])/2,(d['box'][1]+d['box'][3])/2]} for d in members[:8]]
             item.update({'detector':'VLM-selected group / YOLO11n instances','instanceBoxes':[m['box'] for m in members[:8]]})
         else: prompts_list=[item]
-        combined=np.zeros((h,w),dtype=np.uint8)
-        for subject in prompts_list:
-            pixel_box=[int(v*(w if i%2==0 else h)) for i,v in enumerate(subject['box'])]
-            prompts={'bboxes':[pixel_box]}
-            point=subject.get('point')
-            if point: prompts.update({'points':[[[int(point[0]*w),int(point[1]*h)]]],'labels':[[1]]})
-            result=segmenter.predict(source,device=device,verbose=False,imgsz=int(req.get('samImageSize',1024)),**prompts)[0]
-            if result.masks is None or not len(result.masks.data): continue
-            mask_np=result.masks.data[0].cpu().numpy()
-            mask=Image.fromarray((mask_np>0.5).astype(np.uint8)*255).resize((w,h),Image.Resampling.NEAREST)
-            combined=np.maximum(combined,np.asarray(mask))
-        alpha=Image.fromarray(combined)
+        # One SAM call per target: the image is encoded once and every member box
+        # is decoded with its own point (SAM2 pairs box N with point N).
+        prompts={'bboxes':[[int(v*(w if i%2==0 else h)) for i,v in enumerate(s['box'])] for s in prompts_list]}
+        if all(s.get('point') for s in prompts_list): prompts.update({'points':[[[int(s['point'][0]*w),int(s['point'][1]*h)]] for s in prompts_list],'labels':[[1]]*len(prompts_list)})
+        result=segmenter.predict(source,device=device,verbose=False,imgsz=int(req.get('samImageSize',1024)),**prompts)[0]
+        # Low-score masks are dropped by ultralytics, so union whatever survives.
+        mask_np=(result.masks.data.cpu().numpy()>0.5).any(0) if result.masks is not None and len(result.masks.data) else np.zeros((h,w),dtype=bool)
+        alpha=Image.fromarray(mask_np.astype(np.uint8)*255).resize((w,h),Image.Resampling.NEAREST)
         coverage=np.asarray(alpha).mean()/255
         if coverage<.004 or coverage>.9: continue
         boundary=item.get('boundary','silhouette')

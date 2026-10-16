@@ -66,8 +66,8 @@ test('brief-derived prompts are returned and an edited system prompt persists',a
   const initial=await request(app).get('/api/studio').expect(200);
   assert.match(initial.body.context.defaultPrompt,/water connects land/i);
   assert.equal(initial.body.context.defaultPrompt,(await fs.readFile('training-data/image_prompt.txt','utf8')).trim());
-  assert.match(initial.body.context.defaultPrompt,/2–10 local research files/);
-  assert.match(initial.body.context.defaultPrompt,/at least two newly generated environmental fragments and the composition/);
+  assert.match(initial.body.context.defaultPrompt,/6–10 local research files/);
+  assert.match(initial.body.context.defaultPrompt,/at least three speculative texts each lead a newly generated fragment and at least three research papers shape the layout/);
   assert.match(initial.body.context.defaultPrompt,/Never generate, recolour or transform people/);
   assert.match(initial.body.context.systemPrompt,/Kuchema: The Gathering/);
   assert.equal(initial.body.systemPrompt,initial.body.context.systemPrompt);

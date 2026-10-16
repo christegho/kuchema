@@ -5,7 +5,7 @@ import {reportedImageLimit} from './provider-limits.js';
 
 export const imageModels = [
   {id:'bytedance-seed/seedream-4.5',name:'Seedream 4.5',label:'Reference-aware material',estimate:'Live price checked',refs:2,resolution:'2K'},
-  {id:'openai/gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst',label:'Premium · subject to the $1.00 cap',estimate:'Variable pricing — blocked until a safe maximum is available',refs:2,resolution:null},
+  {id:'openai/gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst',label:'Premium · subject to the cost cap',estimate:'Variable pricing — blocked until a safe maximum is available',refs:2,resolution:null},
 ];
 
 export class RouterError extends Error {
@@ -18,7 +18,7 @@ export class RouterError extends Error {
 export const REQUEST_DEADLINE_MS=300000;
 const timedOut=error=>['TimeoutError','AbortError'].includes(error?.name)||['UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT'].includes(error?.cause?.code);
 export function retryableProviderError(error,imageCount=0){
-  if(error instanceof RouterError)return error.code==='TIMEOUT'||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
+  if(error instanceof RouterError)return ['TIMEOUT','TRUNCATED','MALFORMED_JSON'].includes(error.code)||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
   return timedOut(error)||['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(error?.cause?.code);
 }
 
@@ -63,7 +63,7 @@ export async function referenceData(store, asset) {
 
 export function parseJsonResponse(result) {
   const content = result.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('The planning model did not return a text response. Try again.');
+  if (typeof content !== 'string') throw new Error('The model did not return a text response.');
   try { return JSON.parse(content.replace(/^\s*```(?:json)?\s*/, '').replace(/\s*```\s*$/, '')); }
-  catch { throw new Error('The planning model returned an incomplete plan. Try fewer images or a shorter brief.'); }
+  catch { throw new Error('The model returned malformed JSON.'); }
 }

@@ -1,9 +1,9 @@
 import {z} from 'zod';
-import {validateResearchPlan} from './research.js';
+import {validateResearchPlan,isPaper,RESEARCH_RANGE} from './research.js';
 import {TRANSFORMS,DEFAULT_TRANSFORMS,permittedTransforms,treatmentBudget} from './transforms.js';
 export const creationInput=z.object({
  prompt:z.string().trim().min(8).max(3000),ids:z.array(z.string().max(100)).max(200).default([]),
- researchCount:z.number().int().min(2).max(10).default(4),researchIds:z.array(z.string().max(100)).max(100).default([]),
+ researchCount:z.number().int().min(RESEARCH_RANGE[0]).max(RESEARCH_RANGE[1]).default(RESEARCH_RANGE[0]),researchIds:z.array(z.string().max(100)).max(100).default([]),
  count:z.number().int().min(6).max(20).default(10),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
  useReferences:z.boolean().default(true),transformations:z.boolean().default(true),recolouring:z.boolean().default(true),
  enabledTransforms:z.array(z.enum(TRANSFORMS.filter(t=>t!=='none'))).max(TRANSFORMS.length-1).default(DEFAULT_TRANSFORMS),
@@ -12,7 +12,8 @@ export const creationInput=z.object({
  contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
 });
 const placement=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().min(.1).max(1.8),rotation:z.number().min(-35).max(35)});
-const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200)});
+// papers maps each selected research paper to its concrete consequence for the layout.
+const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200),papers:z.record(z.string().max(100),z.string().max(400)).optional()});
 export const advanceSchema=z.object({researchComposition:researchComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(20).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
  researchIds:z.array(z.string().max(100)).max(10).optional(),researchIntent:z.string().max(600).optional(),
  key:z.string().max(30),sourceId:z.string().max(100).nullable(),label:z.string().max(120),prompt:z.string().max(1200),segment:z.string().max(300),reason:z.string().max(500),referenceIds:z.array(z.string().max(100)).max(2),
@@ -23,7 +24,8 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  const base=advanceSchema.shape.images.element,permitted=job.useReferences?referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)&&!['people','composition'].includes(a.archive?.category)).map(a=>a.id):[];
  const transform=base.shape.transform,none=transform.extend({type:z.literal('none')});
  const enabled=permittedTransforms(job);
- const permittedTransform=transform.extend({type:z.enum(['none',...enabled])});
+ // Every generated fragment carries one clearly visible enabled treatment.
+ const visibleTransform=transform.extend({type:z.enum(enabled.length?enabled:['none']),strength:z.number().min(.5).max(1)});
  // Fixed slots avoid ambiguous unions in constrained multimodal decoding. Retrieval supplies
  // the originals; the visual director still chooses every subject, treatment and placement.
  const slots={};
@@ -39,11 +41,12 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
    role:requiredRole?z.literal(requiredRole):generatedRole,
    prompt:a?z.literal(''):z.string().min(40).max(1200),segment:z.string().min(8).max(300),
    referenceIds:a?z.array(z.string()).max(0):referenceIds,
-   transform:!a&&enabled.length?permittedTransform:none,
+   transform:!a&&enabled.length?visibleTransform:none,
    boundary,placement:plannedPlacement,
    ...(job.researchDocuments?{researchIds:job.researchAssignments?.[key]?z.tuple(job.researchAssignments[key].map(id=>z.literal(id))):z.array(z.enum(job.researchDocuments.map(d=>d.id))).max(a?0:2),researchIntent:z.string().min(job.researchAssignments?.[key]?30:0).max(600)}:{})});
  }
- return advanceSchema.extend({...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id)))})}:{}),layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
+ const papers=job.researchDocuments?.filter(isPaper)||[];
+ return advanceSchema.extend({...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),...(papers.length?{papers:z.object(Object.fromEntries(papers.map(d=>[d.id,z.string().min(30).max(400)])))}:{})})}:{}),layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
 }
 
 export function validateAdvance(plan,archive,job,generatedCount,referenceArchive=archive){

@@ -84,36 +84,51 @@ export async function researchLibrary(directory=process.cwd()){
 }
 export const publicResearch=({passages,...document})=>({...document,excerpt:passages[0]?.excerpt||''});
 
-export function selectResearch(documents,{prompt,contextText='',researchCount=4,researchIds=[]}){
-  if(!Number.isInteger(researchCount)||researchCount<2||researchCount>10)throw new Error('Choose between 2 and 10 research files.');
+// Speculative texts (scripts/) each lead a generated image; papers (papers/) shape the layout.
+export const MIN_TEXTS=3,MIN_PAPERS=3,RESEARCH_RANGE=[MIN_TEXTS+MIN_PAPERS,10];
+export const isPaper=document=>document.relativePath.split('/').includes('papers');
+// The non-disclosure testimony may inform restraint in the composition, never an image.
+export const leadsImage=document=>!isPaper(document)&&document.filename!==boundaryOnly;
+
+export function selectResearch(documents,{prompt,contextText='',researchCount=RESEARCH_RANGE[0],researchIds=[]}){
+  const [min,max]=RESEARCH_RANGE;
+  if(!Number.isInteger(researchCount)||researchCount<min||researchCount>max)throw new Error(`Choose between ${min} and ${max} research files.`);
   if(new Set(researchIds).size!==researchIds.length)throw new Error('Research selections must be distinct files.');
   if(researchIds.some(id=>!documents.some(d=>d.id===id&&d.status==='ready')))throw new Error('A selected research file is missing or unreadable.');
   const terms=tokens(`${prompt} ${contextText}`),pool=documents.filter(d=>d.status==='ready'&&(!researchIds.length||researchIds.includes(d.id)));
   // Identical copies cannot inflate the distinct-file requirement.
   const unique=[...new Map(pool.map(d=>[d.checksum,d])).values()];
   if(unique.length<researchCount)throw new Error(`Need ${researchCount} distinct readable research files; ${unique.length} are available in this selection. No paid calls were made.`);
-  return unique.map(d=>{
+  const ranked=unique.map(d=>{
     const passages=d.passages.map((p,index)=>({...p,index,score:score(p.excerpt,terms)})).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,2);
     return {d,passages,score:score(d.title,terms)*3+passages.reduce((n,p)=>n+p.score,0)};
-  }).sort((a,b)=>b.score-a.score||a.d.relativePath.localeCompare(b.d.relativePath)).slice(0,researchCount).map(({d,passages})=>({
+  }).sort((a,b)=>b.score-a.score||a.d.relativePath.localeCompare(b.d.relativePath));
+  const texts=ranked.filter(r=>leadsImage(r.d)),papers=ranked.filter(r=>isPaper(r.d));
+  if(texts.length<MIN_TEXTS||papers.length<MIN_PAPERS)throw new Error(`Need at least ${MIN_TEXTS} speculative texts and ${MIN_PAPERS} research papers; this selection has ${texts.length} and ${papers.length}. No paid calls were made.`);
+  const required=[...texts.slice(0,MIN_TEXTS),...papers.slice(0,MIN_PAPERS)];
+  const chosen=new Set([...required,...ranked.filter(r=>!required.includes(r)).slice(0,researchCount-required.length)]);
+  return ranked.filter(r=>chosen.has(r)).map(({d,passages})=>({
     id:d.id,title:d.title,filename:d.filename,relativePath:d.relativePath,checksum:d.checksum,format:d.format,url:d.url,note:d.note,
     passages:passages.map(({location,excerpt})=>({location,excerpt})),
   }));
 }
 
+/** One distinct speculative text per generated slot, from the first generated slot onwards. */
 export function researchAssignments(documents,count,generatedCount){
-  if(documents.length<2||documents.length>10||generatedCount<2)throw new Error('Research requires 2–10 files and at least two generated collage parts.');
-  const keys=[0,1].map(i=>`F${String(count-generatedCount+i+1).padStart(2,'0')}`);
-  return Object.fromEntries(keys.map((key,i)=>[key,documents.filter((_,index)=>index%2===i).map(d=>d.id)]));
+  const texts=documents.filter(leadsImage);
+  if(texts.length<MIN_TEXTS||documents.filter(isPaper).length<MIN_PAPERS||generatedCount<MIN_TEXTS)throw new Error(`Research requires at least ${MIN_TEXTS} speculative texts, ${MIN_PAPERS} papers and ${MIN_TEXTS} generated collage parts.`);
+  return Object.fromEntries(texts.slice(0,generatedCount).map((d,i)=>[`F${String(count-generatedCount+i+1).padStart(2,'0')}`,[d.id]]));
 }
 export function validateResearchPlan(plan,job){
   if(!job.researchDocuments)return; // Legacy saved studies remain resumable.
   const ids=job.researchDocuments.map(d=>d.id),composition=plan.researchComposition;
   if(!composition||new Set(composition.sourceIds).size!==ids.length||ids.some(id=>!composition.sourceIds.includes(id))||composition.sourceIds.some(id=>!ids.includes(id))||composition.direction.trim().length<30)throw new Error('Composition must explain how every selected research file guides the arrangement.');
+  const papers=job.researchDocuments.filter(isPaper);
+  if(papers.length&&papers.some(d=>(composition.papers?.[d.id]||'').trim().length<30))throw new Error('Every selected research paper must state its consequence for the layout.');
   for(const item of plan.images){
     const assigned=job.researchAssignments[item.key],used=item.researchIds||[];
     if(new Set(used).size!==used.length||used.some(id=>!ids.includes(id))||(item.sourceId&&used.length))throw new Error('Invalid research attribution for a collage part.');
-    if(assigned&&(item.sourceId||JSON.stringify(used)!==JSON.stringify(assigned)||item.researchIntent?.trim().length<30))throw new Error('At least two generated parts must explain and retain their assigned research sources.');
+    if(assigned&&(item.sourceId||JSON.stringify(used)!==JSON.stringify(assigned)||item.researchIntent?.trim().length<30))throw new Error('Every text-led generated part must explain and retain its assigned speculative text.');
   }
   if(Object.keys(job.researchAssignments).some(key=>!plan.images.some(i=>i.key===key)))throw new Error('A required research-led part is missing.');
 }
@@ -123,7 +138,7 @@ export function auditResearchParts(job){
     const m=job.materials?.find(m=>m.key===key);
     return m&&job.project?.layers.some(l=>l.assetId===m.assetId&&l.visible)&&job.coverage?.visible?.[m.rootId]>=.004&&!job.coverage?.obscuredIds?.includes(m.rootId);
   });
-  job.researchCoverage={required:2,plannedKeys:keys,visibleKeys:visible,satisfied:visible.length>=2};
+  job.researchCoverage={required:keys.length,plannedKeys:keys,visibleKeys:visible,satisfied:visible.length>=keys.length};
   job.warnings=job.warnings.filter(w=>!w.startsWith('Research-led parts:'));
-  if(visible.length<2)job.warnings.push(`Research-led parts: ${visible.length} of 2 are visibly present. This is a partial research composition; retry missing cuts or adjust obscured fragments.`);
+  if(visible.length<keys.length)job.warnings.push(`Research-led parts: ${visible.length} of ${keys.length} are visibly present. This is a partial research composition; retry missing cuts or adjust obscured fragments.`);
 }

@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import {archiveCounts} from './archive.js';
 import {providerImageLimit} from './provider-limits.js';
 
-export const MAX_COST = 1.00;
+// Spending ceiling per creation in USD. Set CREATION_COST_LIMIT in .env to change it.
+export const MAX_COST=(limit=>Number.isFinite(limit)&&limit>0?limit:5)(Number(process.env.CREATION_COST_LIMIT));
+export const COST_LIMIT_TEXT=`$${MAX_COST.toFixed(2)}`;
 export const TOKEN_PRICE_LIMIT = { prompt: .3, completion: 2 }; // Legacy quote defaults, USD / million tokens
 export const TEXT_MODELS = { research:'qwen/qwen3-30b-a3b-instruct-2507', vision:'qwen/qwen3-vl-235b-a22b-instruct', planner:'qwen/qwen3-vl-235b-a22b-instruct' };
 export const IMAGE_MODELS = {economy:'bytedance-seed/seedream-4.5','gpt-image':'openai/gpt-image-2.5-sunburst'};
@@ -14,7 +16,7 @@ export class Budget {
   get reported(){return this.job.ledger.reduce((s,l)=>s+(l.actual??0),0);}
   async reserve(label,model,amount){
     if(!Number.isFinite(amount)||amount<=0)throw new Error('No trustworthy price bound is available. Creation stopped before charging.');
-    if(round(this.committed+amount)>MAX_COST)throw new Error('The next step would exceed the $1.00 creation ceiling. No request was sent.');
+    if(round(this.committed+amount)>MAX_COST)throw new Error(`The next step would exceed the ${COST_LIMIT_TEXT} creation ceiling. No request was sent.`);
     const row={id:randomUUID(),label,model,reserved:round(amount),actual:null,status:'reserved',at:new Date().toISOString()};
     this.job.ledger.push(row);await this.persist();return row;
   }
@@ -43,7 +45,7 @@ export function imageQuote(record,model){
   const endpoint=record?.endpoints?.find(e=>e.provider_tag);
   if(!endpoint)throw new Error(`No pinned provider available for ${model}.`);
   const lines=endpoint.pricing||[], outputs=lines.filter(p=>p.billable==='output_image');
-  if(!outputs.length||outputs.some(p=>p.unit!=='image'||!Number.isFinite(p.cost_usd)))throw new Error(`${model} uses variable image-token pricing without an enforceable per-image maximum. It cannot run under the strict $1.00 cap. Choose Seedream; no paid calls were made.`);
+  if(!outputs.length||outputs.some(p=>p.unit!=='image'||!Number.isFinite(p.cost_usd)))throw new Error(`${model} uses variable image-token pricing without an enforceable per-image maximum. It cannot run under the strict cost cap. Choose Seedream; no paid calls were made.`);
   const premium=model.startsWith('openai/'), params=endpoint.supported_parameters||{};
   if(!premium&&!params.resolution?.values?.includes('2K'))throw new Error(`${model} no longer offers 2K output.`);
   const selected=outputs.filter(p=>p.variant?.toLowerCase()===(premium?'high':'2k'));
@@ -87,7 +89,10 @@ export async function pricingPlan(options,fetcher=fetch){
   const text={},endpoints=new Map(),candidates={};
   for(const [role,id] of Object.entries(TEXT_MODELS)){
     if(!catalog.data.some(m=>m.id===id))throw new Error(`Required model ${id} is unavailable.`);
-    const maxTokens=role==='research'?2000:role==='vision'?(count>10?6500:4000):(count>10?10000:5000);
+    // Plans grow with every slot: about 500–700 output tokens each plus shared fields
+    // (a 12-image plan used ~6,200; a 10-image plan overran 5,000). Keep ~1.7× headroom
+    // within the 16,384 tokens every planner endpoint accepts.
+    const maxTokens=role==='research'?2000:role==='vision'?(count>10?6500:4000):Math.min(16000,2000+900*count);
     if(!endpoints.has(id))endpoints.set(id,await get(`https://openrouter.ai/api/v1/models/${id}/endpoints`));
     const eligible=(endpoints.get(id)?.data?.endpoints||[]).filter(e=>e.tag&&(e.status===undefined||e.status===0)&&Number.isInteger(e.context_length)&&e.context_length>0&&e.context_length<=262144&&e.supported_parameters?.includes('response_format')&&(role==='research'||e.supported_parameters?.includes('structured_outputs'))&&(!e.max_completion_tokens||e.max_completion_tokens>=maxTokens));
     const imageCount=imageCounts[role]??0;
@@ -105,7 +110,7 @@ export async function pricingPlan(options,fetcher=fetch){
   }
   const weights={research:1,vision:1,planner:2};
   let total=round(Object.entries(text).reduce((sum,[role,q])=>sum+q.bound*weights[role],0)+generatedCount*(images[0]?.reserved||0));
-  if(total>MAX_COST)throw new Error(`${count} distinct images require ${generatedCount} new images and a $${total.toFixed(3)} reservation. The limit is $1.00. Include more archive images or reduce the count. No paid calls were made.`);
+  if(total>MAX_COST)throw new Error(`${count} distinct images require ${generatedCount} new images and a $${total.toFixed(3)} reservation. The limit is ${COST_LIMIT_TEXT}. Include more archive images or reduce the count. No paid calls were made.`);
   // Give each stage an alternative before adding a third. Prefer health/performance,
   // not lowest price, when choosing the extra providers that fit the remaining budget.
   for(let roundIndex=0;roundIndex<2;roundIndex++)for(const role of Object.keys(text)){

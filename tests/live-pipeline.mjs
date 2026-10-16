@@ -5,7 +5,7 @@ import {randomUUID,createHash} from 'node:crypto';
 import {createStore} from '../server/store.js';
 import {routerRequest} from '../server/ai.js';
 import {CreationPipeline} from '../server/pipeline.js';
-if(process.env.RUN_LIVE_AI!=='1')throw new Error('Set RUN_LIVE_AI=1 to run this paid integration test (maximum $1.00).');
+if(process.env.RUN_LIVE_AI!=='1')throw new Error('Set RUN_LIVE_AI=1 to run this paid integration test (maximum: CREATION_COST_LIMIT, default $5.00).');
 const dir=path.resolve(process.env.LIVE_TEST_DIR||'test-results/dense-studio');
 const store=await createStore(dir);await store.importDirectory(path.resolve('images_test'),true);
 const cache=path.join(dir,'responses');await fs.mkdir(cache,{recursive:true});

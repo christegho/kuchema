@@ -1,6 +1,6 @@
 # How Kuchema makes a collage
 
-The studio is not a free-running multi-agent system. One deterministic orchestrator, `CreationPipeline` in [server/pipeline.js](server/pipeline.js), calls five model roles in a fixed order and checks every answer in code before moving on. The paid models run through OpenRouter, under a $1.00 ceiling per collage. People detection and segmentation run locally at no cost.
+The studio is not a free-running multi-agent system. One deterministic orchestrator, `CreationPipeline` in [server/pipeline.js](server/pipeline.js), calls five model roles in a fixed order and checks every answer in code before moving on. The paid models run through OpenRouter, under a per-collage cost ceiling ($5.00 by default, set by `CREATION_COST_LIMIT`). People detection and segmentation run locally at no cost.
 
 This describes the working tree on 16 October 2026, including the provider failover in [server/routing.js](server/routing.js).
 
@@ -78,9 +78,9 @@ flowchart TB
     C1["Checks: API key, local models installed,<br/>one collage at a time"]
     C2["Pick archive photos at random<br/>4–8 people photos to crop<br/>at least 2 general and 2 water photos as references<br/>1 style-guide collage for composition only"]
     C3["Generated images = total minus people photos"]
-    C4["Pick 2–10 research files by keyword score<br/>2 passages each, tied to 2 generated slots"]
+    C4["Pick 6–10 research files by keyword score<br/>at least 3 speculative texts and 3 papers, 2 passages each<br/>each text leads one generated slot"]
     C5["Live price check on OpenRouter<br/>up to 3 providers per role within budget"]
-    C6{"Worst case over $1.00?"}
+    C6{"Worst case over the cost cap?<br/>($5.00 by default)"}
     C1 --> C2 --> C3 --> C4 --> C5 --> C6
   end
   T --> C1
@@ -91,7 +91,7 @@ flowchart TB
     R1["Context search<br/>Qwen3 30B A3B Instruct + Exa web search"]:::paid
     R2{"Verifiable cited sources?"}
     P1["Advance collage plan<br/>Qwen3 VL 235B A22B<br/>sees every chosen archive photo"]:::paid
-    P2["Validate the plan in code<br/>exact slots and permissions, no generated people,<br/>at most 3 treated images and 2 treatment types"]
+    P2["Validate the plan in code<br/>exact slots and permissions, no generated people,<br/>every generated image treated, at most 3 treatment types,<br/>a layout consequence for every paper"]
     R1 --> R2
     R2 -- yes --> P1 --> P2
   end
@@ -102,25 +102,26 @@ flowchart TB
     direction TB
     M1{"Slot type"}
     M2["Use the archive people photo unchanged"]
-    M3["Generate an environment image<br/>Seedream 4.5 · 2K · 1 general + 1 water reference"]:::paid
-    M4["Optional treatment in code<br/>generated images only"]
+    M3["Generate a speculative environment image<br/>Seedream 4.5 · 2K · 1 general + 1 water reference<br/>2 at a time"]:::paid
     M1 -- "archive people" --> M2
-    M1 -- "generated" --> M3 --> M4
+    M1 -- "generated" --> M3
   end
   P2 --> M1
 
   subgraph S4["4 · Cut out the parts"]
     direction TB
-    G1["Transformed image grounding<br/>Qwen3 VL 235B A22B<br/>one box and point per image"]:::paid
+    G1["Grounding on untreated images<br/>Qwen3 VL 235B A22B<br/>one box and point per image"]:::paid
     G2["Detect people<br/>YOLO11n"]:::local
     G3["Segment<br/>SAM 2.1 tiny<br/>field, silhouette or residue edge"]:::local
     G4{"Clean, selective cut?"}
     G5["Save as a failed part<br/>retry later without paid calls"]
+    G6["Treat the whole image in code,<br/>crop with the SAM box and alpha"]
     G1 -- "for each image" --> G2 --> G3 --> G4
     G4 -- no --> G5
+    G4 -- yes --> G6
   end
   M2 -- "all slots ready" --> G1
-  M4 -- "all slots ready" --> G1
+  M3 -- "all slots ready" --> G1
 
   subgraph S5["5 · Compose and review"]
     direction TB
@@ -135,7 +136,7 @@ flowchart TB
     K5 -- yes --> K6 --> K7
     K5 -- no --> K7
   end
-  G4 -- yes --> K1
+  G6 --> K1
   G5 -. "study continues without it" .-> K1
 
   OUT(["Poll GET /api/creations/id<br/>collage PNG, warnings, provenance JSON"]):::io
@@ -161,7 +162,7 @@ flowchart TB
 | Detect people | Detector | YOLO11n (`models/yolo11n.pt`) | Local CPU | 1 per image | Yes |
 | Segment | Segmenter | SAM 2.1 tiny (`models/sam2.1_t.pt`) | Local CPU | 1 or more per image | Yes |
 
-`openai/gpt-image-2.5-sunburst` can be selected as a premium image model. The price check blocks it because it has no fixed per-image price that fits the $1.00 ceiling.
+`openai/gpt-image-2.5-sunburst` can be selected as a premium image model. The price check blocks it because it has no fixed per-image price, so its worst case cannot be bounded under the cost cap.
 
 With the default of 10 images, 4 are archive people cut-outs and 6 are generated. That makes 10 paid calls: 4 text calls and 6 image calls. If a text provider fails, the call is retried with the next provider, and every attempt reserves its own worst-case cost. Image generation uses one pinned provider, so an image call that fails stops the collage.
 
