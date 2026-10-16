@@ -78,7 +78,7 @@ export function compareProviderHealth(a,b){
 }
 
 export async function pricingPlan(options,fetcher=fetch){
-  const {generatedCount=0,count=6,imageModel='economy'}=options;
+  const {generatedCount=0,count=10,imageModel='economy'}=options;
   const get=async url=>{const r=await fetcher(url,{signal:AbortSignal.timeout(20000)});if(!r.ok)throw new Error('Cannot verify current model prices. No paid work was started.');return r.json();};
   const catalog=await get('https://openrouter.ai/api/v1/models');
   const text={},endpoints=new Map(),candidates={};

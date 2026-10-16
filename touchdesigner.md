@@ -53,7 +53,7 @@ op('kuchema_api').request(
 
 Research files guide at least two generated fragments and the composition. `researchCount` defaults to 4; `researchIds` optionally restricts the eligible pool using IDs returned by `/api/studio`. The job retains `researchDocuments`, `researchAssignments` and `researchCoverage` for attribution.
 
-This uses the official archive and its random category-selection rules. `count` can be 6–20. People come from direct archive cutouts; generated components contain environmental material. `enabledTransforms` lists permitted treatments, not effects that must all be used. Pass `[]` to disable all treatments. Omit it to use the gentle server defaults. Browser checkbox preferences are local to the browser, so send your preferred list explicitly from TouchDesigner.
+This uses the official archive and its random category-selection rules. `count` can be 6–20 and defaults to 10. People come from direct archive cutouts; generated components contain environmental material. `enabledTransforms` lists permitted treatments, not effects that must all be used. Pass `[]` to disable all treatments. Omit it to use the gentle server defaults. Browser checkbox preferences are local to the browser, so send your preferred list explicitly from TouchDesigner.
 
 In the Web Client DAT's response callback, parse the response body with `json.loads(data)` and retain the returned job's `id`. A successful submission returns HTTP `202`. Handle non-success responses by displaying their `error` field.
 

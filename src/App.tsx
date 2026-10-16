@@ -18,7 +18,7 @@ function Installation({initial}:{initial:Studio}){
   const [assets,setAssets]=useState(initial.assets),[creations,setCreations]=useState(initial.creations||[]);
   const {project,update,undo,redo,canUndo,canRedo}=useHistory(initial.project||initialProject([]));
   const [job,setJob]=useState<Creation|undefined>((initial.creations||[]).find(running)||[...(initial.creations||[])].reverse().find(j=>j.status==='complete'));
-  const [prompt,setPrompt]=useState(initial.context?.defaultPrompt||''),[count,setCount]=useState(6),[aesthetic,setAesthetic]=useState('prompt'),[generation,setGeneration]=useState('needed'),[chosen,setChosen]=useState<string[]>([]),[search,setSearch]=useState('');
+  const [prompt,setPrompt]=useState(initial.context?.defaultPrompt||''),[count,setCount]=useState(10),[aesthetic,setAesthetic]=useState('prompt'),[generation,setGeneration]=useState('needed'),[chosen,setChosen]=useState<string[]>([]),[search,setSearch]=useState('');
   const [limitArchive,setLimitArchive]=useState(false);
   const [includeArchive,setIncludeArchive]=useState(true),[includePeople,setIncludePeople]=useState(true),[useReferences,setUseReferences]=useState(true),[transformations,setTransformations]=useState(true),[recolouring,setRecolouring]=useState(true),[imageModel,setImageModel]=useState('economy'),[contextText,setContextText]=useState(initial.contextText||''),[systemPrompt,setSystemPrompt]=useState(initial.systemPrompt??initial.context?.systemPrompt??'');
   const [enabledTransforms,setEnabledTransforms]=useState<string[]>(()=>{

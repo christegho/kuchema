@@ -163,6 +163,6 @@ flowchart TB
 
 `openai/gpt-image-2.5-sunburst` can be selected as a premium image model. The price check blocks it because it has no fixed per-image price that fits the $1.00 ceiling.
 
-With the default of 6 images, 4 are archive people cut-outs and 2 are generated. That makes 6 paid calls: 4 text calls and 2 image calls. If a text provider fails, the call is retried with the next provider, and every attempt reserves its own worst-case cost. Image generation uses one pinned provider, so an image call that fails stops the collage.
+With the default of 10 images, 4 are archive people cut-outs and 6 are generated. That makes 10 paid calls: 4 text calls and 6 image calls. If a text provider fails, the call is retried with the next provider, and every attempt reserves its own worst-case cost. Image generation uses one pinned provider, so an image call that fails stops the collage.
 
 Model IDs are in [server/budget.js](server/budget.js). The local worker is [scripts/vision-worker.py](scripts/vision-worker.py).

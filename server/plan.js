@@ -4,7 +4,7 @@ import {TRANSFORMS,DEFAULT_TRANSFORMS,permittedTransforms,treatmentBudget} from 
 export const creationInput=z.object({
  prompt:z.string().trim().min(8).max(3000),ids:z.array(z.string().max(100)).max(200).default([]),
  researchCount:z.number().int().min(2).max(10).default(4),researchIds:z.array(z.string().max(100)).max(100).default([]),
- count:z.number().int().min(6).max(20).default(6),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
+ count:z.number().int().min(6).max(20).default(10),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
  useReferences:z.boolean().default(true),transformations:z.boolean().default(true),recolouring:z.boolean().default(true),
  enabledTransforms:z.array(z.enum(TRANSFORMS.filter(t=>t!=='none'))).max(TRANSFORMS.length-1).default(DEFAULT_TRANSFORMS),
  imageModel:z.enum(['economy','gpt-image']).default('economy'),
