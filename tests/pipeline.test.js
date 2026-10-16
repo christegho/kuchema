@@ -404,3 +404,18 @@ test('unreadable Parasail response switches to DeepInfra and completes the ten-i
  assert.equal(job.ledger.find(r=>r.label.startsWith('Advance collage plan')).status,'uncertain');
  assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
 });
+
+test('a provider outage during the layout review keeps the rendered draft; other review errors still stop',async t=>{
+ const {RouterError}=await import('../server/ai.js');
+ for(const [error,status] of [[new RouterError('OpenRouter did not finish the request within 300 seconds.',{status:200,code:'TIMEOUT'}),'complete'],[new RouterError('Credits exhausted',{status:402,code:402}),'failed']]){
+  const store=await fixture(t),base=requestDouble(store);
+  const request=async(endpoint,body)=>{if(body.response_format?.json_schema?.name==='collage_critique')throw error;return base(endpoint,body);};
+  const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request});
+  const job=await pipeline.start(input());await pipeline.running;
+  assert.equal(job.status,status,job.error);
+  assert.equal(job.ledger.find(r=>r.label.startsWith('Collage critique')).status,'uncertain');
+  if(status==='failed'){assert.match(job.error,/Credits exhausted/);continue;}
+  assert.equal(job.critique,undefined);assert.deepEqual(job.finalLayout,job.initialLayout);assert.ok(job.previewUrl);assert.equal(job.project.layers.length,6);
+  assert.ok(job.warnings.some(w=>/layout review, so the draft arrangement was kept/.test(w)));
+ }
+});

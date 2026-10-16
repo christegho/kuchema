@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Budget} from '../server/budget.js';
-import {RouterError,routerRequest,retryableProviderError,parseJsonResponse} from '../server/ai.js';
+import {RouterError,REQUEST_DEADLINE_MS,routerRequest,retryableProviderError,parseJsonResponse} from '../server/ai.js';
 import {routedTextCall} from '../server/routing.js';
 
 const candidates=[
@@ -49,6 +49,37 @@ test('unreadable responses from every candidate stop at the reserved attempt cou
  const f=fixture(routerRequest);
  await assert.rejects(routedTextCall(f.args),error=>error.code==='UNREADABLE_RESPONSE');
  assert.equal(calls,2);assert.equal(f.args.budget.committed,.1);assert.ok(f.job.ledger.every(r=>r.status==='uncertain'));
+});
+
+test('a deadline reached after HTTP 200 is a provider timeout that fails over, not an unreadable response',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const deadlines=[],timeout=AbortSignal.timeout;t.mock.method(AbortSignal,'timeout',ms=>{deadlines.push(ms);return timeout.call(AbortSignal,ms);});
+ const quote={candidates:[{...candidates[0],provider:'parasail/fp8',name:'Parasail'},{...candidates[1],provider:'deepinfra/fp8',name:'DeepInfra'}]},sent=[];
+ t.mock.method(globalThis,'fetch',async(_,options)=>{
+  sent.push(JSON.parse(options.body).provider.only[0]);
+  // OpenRouter has committed 200 and sent keep-alive whitespace when the client deadline fires.
+  if(sent.length===1)return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('\n\n'));c.error(new DOMException('The operation was aborted due to timeout','TimeoutError'));}}),{status:200});
+  return Response.json({provider:'DeepInfra',choices:[{message:{content:'{}'}}],usage:{cost:.001}});
+ });
+ const f=fixture(routerRequest),result=await routedTextCall({...f.args,quote,body:visualBody(13)});
+ assert.equal(result.provider,'DeepInfra');assert.deepEqual(sent,['parasail/fp8','deepinfra/fp8']);
+ assert.deepEqual(deadlines,[REQUEST_DEADLINE_MS,REQUEST_DEADLINE_MS]);assert.equal(REQUEST_DEADLINE_MS,300000);
+ const failed=f.job.providerAttempts[0];assert.equal(failed.code,'TIMEOUT');assert.equal(failed.httpStatus,200);
+ assert.match(failed.error,/parasail\/fp8 within 300 seconds/);assert.doesNotMatch(failed.error,/unreadable/);
+ assert.equal(f.job.ledger[0].status,'uncertain');assert.equal(f.args.budget.committed,.1);
+});
+
+test('fetch header and body timeouts are retryable timeouts; a dropped body is still unreadable',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const body={provider:{only:['parasail/fp8']}};
+ t.mock.method(globalThis,'fetch',async()=>{throw new TypeError('fetch failed',{cause:{code:'UND_ERR_HEADERS_TIMEOUT'}});});
+ await assert.rejects(routerRequest('chat/completions',body),error=>error instanceof RouterError&&error.code==='TIMEOUT'&&error.status===undefined&&error.provider==='parasail/fp8'&&retryableProviderError(error));
+ for(const [code,expected] of [['UND_ERR_BODY_TIMEOUT','TIMEOUT'],['UND_ERR_SOCKET','UNREADABLE_RESPONSE']]){
+  t.mock.method(globalThis,'fetch',async()=>new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('{"choices":'));c.error(new TypeError('terminated',{cause:{code}}));}}),{status:200}));
+  await assert.rejects(routerRequest('chat/completions',body),error=>error.code===expected&&error.status===200&&retryableProviderError(error));
+ }
+ t.mock.method(globalThis,'fetch',async()=>{throw new TypeError('fetch failed',{cause:{code:'ECONNRESET'}});});
+ await assert.rejects(routerRequest('chat/completions',body),error=>!(error instanceof RouterError)&&retryableProviderError(error));
 });
 
 test('invalid JSON inside a readable model answer is distinct from a broken API response',async t=>{
@@ -120,6 +151,7 @@ test('auth, credit, invalid-input and malformed-content errors never trigger pro
 
 test('temporary upstream and network failures qualify, but failover stops when cancelled',async()=>{
  for(const code of [404,408,429,500,502,503,504])assert.ok(retryableProviderError(new RouterError('Temporary',{status:code,code})));
+ assert.ok(retryableProviderError(new RouterError('Did not finish',{status:200,code:'TIMEOUT'})));
  assert.ok(retryableProviderError(Object.assign(new Error('timeout'),{name:'TimeoutError'})));
  assert.ok(retryableProviderError(new TypeError('fetch failed',{cause:{code:'ECONNRESET'}})));
  let calls=0;const f=fixture(async()=>{calls++;f.job.cancelRequested=true;throw new RouterError('Rate limited',{code:429});});
