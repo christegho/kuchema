@@ -374,3 +374,33 @@ test('ten-image collage plans with all thirteen archive references while bypassi
  assert.equal(job.ledger.filter(r=>r.label.startsWith('Advance collage plan')).length,1);
  assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
 });
+
+test('unreadable Parasail response switches to DeepInfra and completes the ten-image collage',async t=>{
+ const {routerRequest}=await import('../server/ai.js');
+ const store=await officialFixture(t),base=requestDouble(store),planning=[];let researchCalls=0,imageCalls=0;
+ const fallbackPrices=async options=>{
+  const p=await prices(options);
+  p.text.planner={...p.text.planner,bound:.08,candidates:[{provider:'parasail/fp8',bound:.04,maxPrice:{prompt:.3,completion:2},uptime:100},{provider:'deepinfra/fp8',bound:.04,maxPrice:{prompt:.3,completion:2},uptime:99}]};
+  p.total+=.08;return p;
+ };
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+  const endpoint=url.endsWith('/images')?'images':'chat/completions',body=JSON.parse(options.body);
+  if(endpoint==='images')imageCalls++;
+  else if(!body.response_format.json_schema)researchCalls++;
+  if(body.response_format?.json_schema?.name==='advance_collage_plan'){
+   planning.push(body);
+   if(planning.length===1)return new Response('{"choices":',{status:200});
+  }
+  return Response.json(await base(endpoint,body));
+ });
+ const pipeline=new CreationPipeline(store,{prices:fallbackPrices,vision:fakeVision,request:routerRequest});
+ const job=await pipeline.start(input({count:undefined}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.count,10);
+ assert.deepEqual(planning.map(b=>b.provider.only[0]),['parasail/fp8','deepinfra/fp8']);
+ assert.deepEqual(planning[0].messages,planning[1].messages);
+ assert.equal(planning[1].messages[1].content.filter(p=>p.type==='image_url').length,13);
+ assert.equal(researchCalls,1);assert.equal(imageCalls,6);assert.equal(job.project.layers.length,10);
+ assert.equal(job.providerAttempts.find(a=>a.provider==='parasail/fp8').code,'UNREADABLE_RESPONSE');
+ assert.equal(job.ledger.find(r=>r.label.startsWith('Advance collage plan')).status,'uncertain');
+ assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
+});

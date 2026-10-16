@@ -28,7 +28,7 @@ export async function routedTextCall({job,budget,quote,label,body,request,persis
       if(index>0){job.warnings||=[];job.warnings.push(`${label} continued with ${attempt.actualProvider} after another provider failed.`);}
       await persist();return result;
     }catch(error){
-      attempt.status='failed';attempt.error=error.message;attempt.code=error.code||error.status;
+      attempt.status='failed';attempt.error=error.message;attempt.code=error.code||error.status;attempt.httpStatus=error.status;
       lastError=error;await persist();
       if(!retryableProviderError(error,imageCount))throw error;
       unavailable.add(candidate.provider);

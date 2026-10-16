@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Budget} from '../server/budget.js';
-import {RouterError,routerRequest,retryableProviderError} from '../server/ai.js';
+import {RouterError,routerRequest,retryableProviderError,parseJsonResponse} from '../server/ai.js';
 import {routedTextCall} from '../server/routing.js';
 
 const candidates=[
@@ -15,6 +15,49 @@ function fixture(request){
 }
 
 const visualBody=count=>({model:'qwen/qwen3-vl-235b-a22b-instruct',messages:[{role:'user',content:Array.from({length:count},(_,i)=>({type:'image_url',image_url:{url:`https://example.test/${i}.png`}}))}]});
+
+test('unreadable successful HTTP responses fail over without losing images or reclaiming cost',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const quote={candidates:[{...candidates[0],provider:'parasail/fp8',name:'Parasail'},{...candidates[1],provider:'deepinfra/fp8',name:'DeepInfra'}]};
+ for(const [raw,status] of [['',200],['<html>upstream error sk-private-secret</html>',200],['{"choices":',200],['null',200],['[]',200],['"unexpected response"',200],[null,204]]){
+  const sent=[];
+  t.mock.method(globalThis,'fetch',async(_,options)=>{
+   assert.equal(options.headers.Accept,'application/json');sent.push(JSON.parse(options.body));
+   return sent.length===1?new Response(raw,{status}):Response.json({provider:'DeepInfra',choices:[{message:{content:'{}'}}],usage:{cost:.001}});
+  });
+  const f=fixture(routerRequest),body=visualBody(13);
+  await routedTextCall({...f.args,quote,body});
+  assert.deepEqual(sent.map(b=>b.provider.only[0]),['parasail/fp8','deepinfra/fp8']);
+  assert.deepEqual(sent[0].messages,sent[1].messages);assert.equal(f.args.budget.committed,.1);
+  assert.equal(f.job.ledger[0].status,'uncertain');assert.equal(f.job.ledger[1].actual,.001);
+  const failed=f.job.providerAttempts[0];assert.equal(failed.code,'UNREADABLE_RESPONSE');assert.equal(failed.httpStatus,status);
+  assert.match(failed.error,/parasail\/fp8/);assert.ok(!failed.error.includes('sk-private-secret'));assert.ok(!failed.error.includes('<html>'));
+ }
+});
+
+test('unreadable HTTP auth, credit and input errors remain terminal; gateway failures remain retryable',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ for(const status of [400,401,402,403,422,429,502,503]){
+  t.mock.method(globalThis,'fetch',async()=>new Response('<html>Error</html>',{status}));
+  await assert.rejects(routerRequest('chat/completions',{}),error=>error instanceof RouterError&&error.status===status&&retryableProviderError(error)===[429,502,503].includes(status));
+ }
+});
+
+test('unreadable responses from every candidate stop at the reserved attempt count',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return new Response('');});
+ const f=fixture(routerRequest);
+ await assert.rejects(routedTextCall(f.args),error=>error.code==='UNREADABLE_RESPONSE');
+ assert.equal(calls,2);assert.equal(f.args.budget.committed,.1);assert.ok(f.job.ledger.every(r=>r.status==='uncertain'));
+});
+
+test('invalid JSON inside a readable model answer is distinct from a broken API response',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({choices:[{message:{content:'{"incomplete":'}}],usage:{cost:.001}});});
+ const f=fixture(routerRequest),result=await routedTextCall(f.args);
+ assert.throws(()=>parseJsonResponse(result),/incomplete plan/);assert.equal(calls,1);assert.equal(f.job.ledger[0].status,'complete');
+});
+
 test('oversized visual requests skip Venice without charging or dropping references',async()=>{
  const sent=[],f=fixture(async(_,body)=>{sent.push(body);return {usage:{cost:.001}};});
  const quote={candidates:[{...candidates[0],provider:'venice/fp8'},candidates[1]]};
