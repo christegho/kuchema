@@ -19,6 +19,7 @@
     "konva": "^10.0.0",
     "lucide-react": "^0.468.0",
     "multer": "^2.0.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-konva": "^19.0.0",
@@ -35,6 +36,6 @@
     "vite": "^6.3.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   }
 }

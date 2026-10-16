@@ -3,6 +3,8 @@ import path from 'node:path';
 import express from 'express';
 import { createStore } from './store.js';
 import { createApp } from './app.js';
+import {syncProjectContext} from './context.js';
+import {researchLibrary} from './research.js';
 
 const store = await createStore(process.env.DATA_DIR || './data');
 // Migrate the old sample-directory setting as well as the default.
@@ -11,6 +13,9 @@ const archiveDirectory=!configuredArchive||path.resolve(configuredArchive)===pat
 const imported=await store.importOfficialArchive(archiveDirectory);
 console.log(`Official archive: ${imported.count} distinct images imported.`);
 for(const error of imported.errors)console.warn(`Archive import: ${error}`);
+await syncProjectContext(store);
+const research=await researchLibrary();
+console.log(`Research archive: ${research.filter(d=>d.status==='ready').length} readable documents.`);
 const app = createApp(store);
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.resolve('dist')));

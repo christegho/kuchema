@@ -7,6 +7,14 @@ export const imageModels = [
   {id:'openai/gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst',label:'Premium · subject to the $1.00 cap',estimate:'Variable pricing — blocked until a safe maximum is available',refs:2,resolution:null},
 ];
 
+export class RouterError extends Error {
+  constructor(message,{status,code,provider}={}){super(message);this.name='RouterError';this.status=status;this.code=code;this.provider=provider;}
+}
+export function retryableProviderError(error){
+  if(error instanceof RouterError)return [404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status);
+  return ['TimeoutError','AbortError'].includes(error?.name)||['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(error?.cause?.code);
+}
+
 export async function routerRequest(endpoint, body) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error('Add OPENROUTER_API_KEY to .env and restart the studio to use AI.');
   const response = await fetch(`https://openrouter.ai/api/v1/${endpoint}`, {
@@ -14,11 +22,13 @@ export async function routerRequest(endpoint, body) {
     headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Situated Studio' },
     body: JSON.stringify(body),
   });
-  const result = await response.json();
+  let result;
+  try{result=await response.json();}
+  catch{if(!response.ok)throw new RouterError(`OpenRouter returned ${response.status}`,{status:response.status,code:response.status});throw new Error('OpenRouter returned an unreadable response.');}
   if (!response.ok || result.error) {
     const detail=result.error?.metadata;
     const message = String((result.error?.message || `OpenRouter returned ${response.status}`)+(detail?.provider_name?` (${detail.provider_name})`:'')+(typeof detail?.raw==='string'?`: ${detail.raw}`:'')).replace(/sk-[\w-]+/g, '[redacted]');
-    throw new Error(message.slice(0, 500));
+    throw new RouterError(message.slice(0, 500),{status:response.status,code:Number(result.error?.code)||response.status,provider:detail?.provider_name});
   }
   return result;
 }

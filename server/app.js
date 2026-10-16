@@ -7,7 +7,8 @@ import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS} from './transforms.js';
 import { imageModels } from './ai.js';
 import { CreationPipeline } from './pipeline.js';
 import {creationInput} from './plan.js';
-import {projectContext} from './context.js';
+import {syncProjectContext} from './context.js';
+import {researchLibrary,publicResearch} from './research.js';
 import {TEXT_MODELS} from './budget.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 30, fileSize: 20 * 1024 * 1024, fields: 5 } });
@@ -32,14 +33,20 @@ export function createApp(store, options = {}) {
   app.use(express.json({ limit: '1mb' }));
   app.get('/api/health', (_, res) => res.json({ ok: true }));
   app.get('/api/studio', async (_, res) => {
-    const context=await projectContext();
+    const context=await syncProjectContext(store);
     res.json({
-      assets:store.state.assets.map(publicAsset),project:store.state.project,officialArchive:Boolean(store.state.officialArchive),
+      researchDocuments:(await researchLibrary()).map(publicResearch),assets:store.state.assets.map(publicAsset),project:store.state.project,officialArchive:Boolean(store.state.officialArchive),
       creations:store.state.creations||[],pipeline:await pipeline.status(),
       context,contextText:store.state.contextText||'',systemPrompt:store.state.systemPrompt??context.systemPrompt,
       models:imageModels,transformOptions:TRANSFORM_OPTIONS,defaultTransforms:DEFAULT_TRANSFORMS,aiConfigured:Boolean(process.env.OPENROUTER_API_KEY),
       textModel:TEXT_MODELS.vision,textModels:TEXT_MODELS,usage:store.state.usage,
     });
+  });
+  app.get('/api/research/:id/file', async (req,res)=>{
+    const document=(await researchLibrary()).find(d=>d.id===req.params.id);
+    if(!document)return res.status(404).json({error:'Research file not found.'});
+    res.setHeader('Content-Disposition',`inline; filename*=UTF-8''${encodeURIComponent(document.filename)}`);
+    res.type(document.format==='pdf'?'application/pdf':'text/plain').sendFile(path.resolve(document.relativePath));
   });
   app.get('/media/:filename', (req, res) => {
     if (!/^[a-f0-9-]{36}\.(png|thumb\.webp)$/.test(req.params.filename)) return res.sendStatus(404);

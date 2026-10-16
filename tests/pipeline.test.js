@@ -35,9 +35,9 @@ async function fixture(t,n=5){
  const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-only';t.after(()=>{if(old)process.env.OPENROUTER_API_KEY=old;else delete process.env.OPENROUTER_API_KEY;});return store;
 }
 function direction(archive,job,generatedCount,referenceArchive=archive){
- return {title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
+ return {...(job.localResearch?{researchComposition:{sourceIds:job.localResearch.map(d=>d.id),direction:'Layer the water pathways across the soil contours, using recurrence and offset scales from the supplied research.'}}:{}),title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
   const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):generationIndex<2?'environment':'material';
-  return {key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
+  return {...(job.localResearch?{researchIds:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]||[],researchIntent:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]?'The documented relationships between water and land become an interlocking mineral surface.':''}:{}),key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
  })};
 }
 function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
@@ -299,4 +299,56 @@ test('a segmenter returning whole photographs cannot paste them into an automati
  const job=await pipeline.start(input({}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,6);
  assert.ok(job.failedParts.every(p=>/almost whole rectangular/.test(p.error)));
+});
+
+for(const researchCount of [2,10])test(`research ${researchCount}: passages reach two image calls, composition review and saved provenance`,async t=>{
+ const store=await fixture(t),calls=[];
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
+ const job=await pipeline.start(input({includeArchive:false,includePeople:false,researchCount}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.researchDocuments.length,researchCount);
+ for(const {endpoint,body} of calls){
+  const direction=endpoint==='images'?body.prompt:body.messages[0].content;
+  assert.match(direction,/ARCHIVE IMAGE RULES/);assert.match(direction,/Never generate people from scratch/);
+  assert.match(direction,/exactly one image from collages-style-guide/);assert.match(direction,/only enabled treatments/);
+ }
+ const ids=job.researchDocuments.map(d=>d.id);assert.deepEqual(job.plan.researchComposition.sourceIds,ids);
+ const researchParts=job.plan.images.filter(i=>job.researchAssignments[i.key]);assert.equal(researchParts.length,2);
+ for(const part of researchParts){
+  const asset=store.state.assets.find(a=>!a.derived&&a.generation?.researchIntent===part.researchIntent&&JSON.stringify(a.generation.researchIds)===JSON.stringify(part.researchIds));
+  assert.ok(asset);assert.equal(asset.generation.localResearch.length,part.researchIds.length);
+  const sent=calls.find(c=>c.endpoint==='images'&&c.body.prompt===asset.generation.prompt);assert.ok(sent);
+  for(const id of part.researchIds){const doc=job.researchDocuments.find(d=>d.id===id);assert.ok(sent.body.prompt.includes(doc.passages[0].excerpt.replaceAll('\n','\\n'))||sent.body.prompt.includes(doc.passages[0].excerpt));}
+ }
+ const review=calls.find(c=>c.body.response_format?.json_schema?.name==='collage_critique');
+ const payload=JSON.parse(review.body.messages[1].content[0].text);assert.deepEqual(payload.localResearch.map(d=>d.id),ids);assert.deepEqual(payload.researchComposition,job.plan.researchComposition);
+ assert.ok(job.researchCoverage);assert.equal(job.researchCoverage.required,2);
+});
+
+test('insufficient research fails before any paid calls',async t=>{
+ const store=await fixture(t);let calls=0;
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,research:async()=>[],request:async()=>{calls++;throw new Error('Must not call');}});
+ const job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'failed');assert.match(job.error,/distinct readable research/);assert.equal(calls,0);assert.equal(job.ledger.length,0);
+});
+
+test('planner dropping required research attribution stops before image generation',async t=>{
+ const store=await fixture(t);let images=0;
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{onBody:e=>{if(e==='images')images++;},mutatePlan:plan=>{plan.images.find(i=>i.researchIds?.length).researchIds=[];return plan;}})});
+ const job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'failed');assert.equal(images,0);
+});
+
+test('research upstream rate limit switches providers and the same study continues to completion',async t=>{
+ const {RouterError}=await import('../server/ai.js');
+ const store=await fixture(t),seen=[];
+ const base=requestDouble(store);
+ const withAlternatives=async o=>{const p=await prices(o);p.text.research={...p.text.research,bound:.06,candidates:[{provider:'dekallm',bound:.03,maxPrice:{prompt:.1,completion:.4},uptime:100},{provider:'nebius/fp8',bound:.03,maxPrice:{prompt:.2,completion:.5},uptime:99}]};p.total+=.03;return p;};
+ const pipeline=new CreationPipeline(store,{prices:withAlternatives,vision:fakeVision,request:async(endpoint,body)=>{
+  if(endpoint==='chat/completions'&&!body.response_format.json_schema){seen.push(body.provider.only[0]);if(seen.length===1)throw new RouterError('DekaLLM temporarily rate-limited upstream',{code:429,status:429,provider:'DekaLLM'});}
+  return base(endpoint,body);
+ }});
+ const job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.deepEqual(seen,['dekallm','nebius/fp8']);assert.equal(job.providerAttempts.length,2);
+ assert.equal(job.ledger[0].status,'uncertain');assert.ok(job.ledger.reduce((n,r)=>n+r.reserved,0)<=1);
+ assert.ok(job.project.layers.length);assert.ok(job.warnings.some(w=>w.includes('continued with nebius/fp8')));
 });

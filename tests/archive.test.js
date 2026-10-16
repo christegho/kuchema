@@ -27,6 +27,7 @@ test('recursive official import classifies folders, deduplicates, preserves edit
  const person=active.find(a=>a.archive.category==='people');assert.equal(person.archive.paths.length,2);assert.equal(person.allowCrop,true);assert.equal(person.allowReference,false);
  assert.ok(active.find(a=>a.archive.sacred)?.allowReference);
  assert.equal(active.find(a=>a.archive.category==='composition').allowReference,false);
+ assert.ok(active.filter(a=>['general','water'].includes(a.archive.category)).every(a=>a.allowReference&&!a.allowCrop));
  person.allowCrop=false;person.caption='Keep this contributor caption';await store.persist();
  await fs.unlink(path.join(dir,names[1]));await store.importOfficialArchive(dir);
  assert.equal(store.state.assets.length,6);assert.equal(person.allowCrop,false);assert.equal(person.caption,'Keep this contributor caption');

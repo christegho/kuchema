@@ -1,7 +1,9 @@
 import {z} from 'zod';
+import {validateResearchPlan} from './research.js';
 import {TRANSFORMS,DEFAULT_TRANSFORMS,permittedTransforms,treatmentBudget} from './transforms.js';
 export const creationInput=z.object({
  prompt:z.string().trim().min(8).max(3000),ids:z.array(z.string().max(100)).max(200).default([]),
+ researchCount:z.number().int().min(2).max(10).default(4),researchIds:z.array(z.string().max(100)).max(100).default([]),
  count:z.number().int().min(6).max(20).default(6),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
  useReferences:z.boolean().default(true),transformations:z.boolean().default(true),recolouring:z.boolean().default(true),
  enabledTransforms:z.array(z.enum(TRANSFORMS.filter(t=>t!=='none'))).max(TRANSFORMS.length-1).default(DEFAULT_TRANSFORMS),
@@ -10,7 +12,9 @@ export const creationInput=z.object({
  contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
 });
 const placement=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().min(.1).max(1.8),rotation:z.number().min(-35).max(35)});
-export const advanceSchema=z.object({layerOrder:z.array(z.string().max(30)).min(6).max(20).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
+const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200)});
+export const advanceSchema=z.object({researchComposition:researchComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(20).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
+ researchIds:z.array(z.string().max(100)).max(10).optional(),researchIntent:z.string().max(600).optional(),
  key:z.string().max(30),sourceId:z.string().max(100).nullable(),label:z.string().max(120),prompt:z.string().max(1200),segment:z.string().max(300),reason:z.string().max(500),referenceIds:z.array(z.string().max(100)).max(2),
  role:z.enum(['environment','people','material']),boundary:z.enum(['silhouette','residue','field','whole']),transform:z.object({type:z.enum(TRANSFORMS),strength:z.number().min(.1).max(1),reason:z.string().max(500)}),placement
 })).min(6).max(20)});
@@ -36,12 +40,14 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
    prompt:a?z.literal(''):z.string().min(40).max(1200),segment:z.string().min(8).max(300),
    referenceIds:a?z.array(z.string()).max(0):referenceIds,
    transform:!a&&enabled.length?permittedTransform:none,
-   boundary,placement:plannedPlacement});
+   boundary,placement:plannedPlacement,
+   ...(job.researchDocuments?{researchIds:job.researchAssignments?.[key]?z.tuple(job.researchAssignments[key].map(id=>z.literal(id))):z.array(z.enum(job.researchDocuments.map(d=>d.id))).max(a?0:2),researchIntent:z.string().min(job.researchAssignments?.[key]?30:0).max(600)}:{})});
  }
- return advanceSchema.extend({layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
+ return advanceSchema.extend({...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id)))})}:{}),layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
 }
 
 export function validateAdvance(plan,archive,job,generatedCount,referenceArchive=archive){
+ validateResearchPlan(plan,job);
  if(plan.images.length!==job.count)throw new Error(`The plan must contain exactly ${job.count} distinct images.`);
  const ids=new Set(),keys=new Set();let generated=0;
  for(const item of plan.images){

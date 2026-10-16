@@ -1,0 +1,49 @@
+flowchart TB
+  classDef hosted fill:#e4e4e4,stroke:#111,stroke-width:1.4px,color:#000
+  classDef local fill:#ffffff,stroke:#111,stroke-width:1.4px,stroke-dasharray:5 3,color:#000
+  classDef det fill:#ffffff,stroke:#666,stroke-width:1px,color:#000
+  classDef data fill:#ffffff,stroke:#111,stroke-width:1px,color:#000
+  classDef hub fill:#ffffff,stroke:#000,stroke-width:2.2px,color:#000
+
+  %% In a TB chart, unlinked nodes in a TB subgraph sit side by side and
+  %% unlinked nodes in an LR subgraph stack vertically.
+  subgraph IN["Inputs"]
+    direction TB
+    P["Artist prompt<br/>and settings"]:::data
+    AD["Art direction and<br/>ethical constraints"]:::data
+    AR[("Photographic archive<br/>people · landscape · water<br/>collage style guide")]:::data
+    RC[("Local research corpus<br/>texts and papers")]:::data
+  end
+
+  O{{"<b>Orchestrator</b><br/>fixed stage order<br/>schema and rule validation of every model output"}}:::hub
+
+  subgraph H["Hosted foundation models"]
+    direction LR
+    A1["<b>Researcher</b> [B]<br/><i>Qwen3-30B-A3B-Instruct-2507 + web search</i><br/>cited context summary"]:::hosted
+    A2["<b>Visual director</b> [C]<br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>slot plan and initial layout"]:::hosted
+    A3["<b>Image generator</b> [D]<br/><i>Seedream 4.5</i><br/>environmental material, no people"]:::hosted
+    A4["<b>Visual grounding</b> [E]<br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>subject boxes and points"]:::hosted
+    A5["<b>Critic</b> [F]<br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>assessment and revised layout"]:::hosted
+  end
+
+  subgraph L["Local vision models"]
+    direction LR
+    Y["<b>Person detector</b> [E]<br/><i>YOLO11n</i><br/>whole-person boxes"]:::local
+    S["<b>Segmenter</b> [E]<br/><i>SAM 2.1 tiny</i><br/>alpha-masked cut-outs"]:::local
+  end
+
+  subgraph C["Deterministic modules"]
+    direction LR
+    SEL["Archive and passage selection [A]"]:::det
+    TR["Image treatments [D]"]:::det
+    LO["Layout optimisation [F]"]:::det
+    CO["Compositing [F]"]:::det
+  end
+
+  OUT["Collage and provenance record"]:::data
+
+  IN --> O
+  O <--> H
+  O <--> L
+  O <--> C
+  C --> OUT

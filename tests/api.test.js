@@ -65,6 +65,10 @@ test('brief-derived prompts are returned and an edited system prompt persists',a
   const {app,store}=await fixture(t);
   const initial=await request(app).get('/api/studio').expect(200);
   assert.match(initial.body.context.defaultPrompt,/water connects land/i);
+  assert.equal(initial.body.context.defaultPrompt,(await fs.readFile('training-data/image_prompt.txt','utf8')).trim());
+  assert.match(initial.body.context.defaultPrompt,/2–10 local research files/);
+  assert.match(initial.body.context.defaultPrompt,/at least two newly generated environmental fragments and the composition/);
+  assert.match(initial.body.context.defaultPrompt,/Never generate, recolour or transform people/);
   assert.match(initial.body.context.systemPrompt,/Kuchema: The Gathering/);
   assert.equal(initial.body.systemPrompt,initial.body.context.systemPrompt);
   await request(app).put('/api/context').send({text:'A contributor account.',systemPrompt:'Keep water, land and collective life in a precise material relation.'}).expect(200);
@@ -89,4 +93,16 @@ test('official archive photos cannot bypass people-only cropping through a manua
  a.archive.category='people';
  await request(app).put('/api/project').send(project([layer(a)])).expect(400);
  await request(app).put('/api/project').send(project([{...layer(a),shape:'ellipse'}])).expect(200);
+});
+
+test('research archive exposes documents and originals without allowing arbitrary file paths',async t=>{
+ const {app}=await fixture(t);
+ const {body}=await request(app).get('/api/studio').expect(200);
+ assert.equal(body.researchDocuments.length,26);assert.ok(body.researchDocuments.every(d=>d.status==='ready'));
+ const txt=body.researchDocuments.find(d=>d.format==='txt'),pdf=body.researchDocuments.find(d=>d.format==='pdf');
+ assert.equal(txt.passages,undefined);assert.ok(txt.excerpt);
+ await request(app).get(txt.url).expect(200).expect('Content-Type',/text\/plain/);
+ await request(app).get(pdf.url).expect(200).expect('Content-Type',/application\/pdf/);
+ await request(app).get('/api/research/unknown/file').expect(404);
+ await request(app).get('/api/research/%2e%2e%2f.env/file').expect(404);
 });

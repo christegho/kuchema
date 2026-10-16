@@ -42,3 +42,32 @@ test('premium token pricing fails closed before any charge',()=>{
  const q=quote();q.endpoints[0].pricing[0].unit='token';
  assert.throws(()=>imageQuote(q,'openai/gpt-image-2.5-sunburst'),/strict \$1.00 cap/);
 });
+
+const endpoint=(tag,prompt=.0000001,completion=.0000004,extra={})=>({tag,provider_name:tag,context_length:131072,pricing:{prompt,completion},supported_parameters:['response_format','structured_outputs'],uptime_last_30m:99,...extra});
+const catalogueFetcher=endpoints=>async url=>({ok:true,json:async()=>url.endsWith('/models')?{data:Object.values(TEXT_MODELS).map(id=>({id}))}:url.includes('/images/')?quote():{data:{endpoints}}});
+
+test('provider pools admit healthier, more expensive alternatives beyond the old token-price ceiling',async()=>{
+ const p=await pricingPlan({generatedCount:2,count:6},catalogueFetcher([endpoint('cheap'),endpoint('fast',.0000005,.000003,{uptime_last_30m:100,throughput_last_30m:150})]));
+ for(const q of Object.values(p.text)){
+  assert.equal(q.candidates.length,2);assert.equal(q.candidates[0].provider,'fast');
+  assert.ok(q.candidates[0].maxPrice.prompt>.3);assert.ok(q.candidates[0].maxPrice.completion>2);
+  assert.ok(Math.abs(q.bound-q.candidates.reduce((n,c)=>n+c.bound,0))<1e-7);
+ }
+ assert.ok(p.total<=1);
+ const worst=p.text.research.bound+p.text.vision.bound+2*p.text.planner.bound+2*p.images[0].reserved;
+ assert.ok(Math.abs(worst-p.total)<1e-7);
+});
+
+test('provider expansion preserves the entire workflow budget and caps each step at three attempts',async()=>{
+ const endpoints=[endpoint('a'),endpoint('b'),endpoint('c'),endpoint('d'),endpoint('expensive',.00001,.00003,{uptime_last_30m:100})];
+ const small=await pricingPlan({generatedCount:2,count:6},catalogueFetcher(endpoints));
+ for(const q of Object.values(small.text)){assert.equal(q.candidates.length,3);assert.ok(q.candidates.every(c=>c.provider!=='expensive'));}
+ const large=await pricingPlan({generatedCount:18,count:20},catalogueFetcher(endpoints));
+ assert.ok(large.total<=1);assert.ok(Object.values(large.text).some(q=>q.candidates.length<3));
+});
+
+test('unhealthy, unpriced, unsupported and ancillary-billed providers cannot enter a fallback pool',async()=>{
+ const endpoints=[endpoint('good'),endpoint('offline',undefined,undefined,{status:1}),endpoint('no-json',undefined,undefined,{supported_parameters:[]}),endpoint('unknown-price',undefined,undefined,{pricing:{prompt:null,completion:.0000004}}),endpoint('flat-fee',undefined,undefined,{pricing:{prompt:.0000001,completion:.0000004,request:1}}),endpoint('oversized',undefined,undefined,{context_length:1000000})];
+ const p=await pricingPlan({generatedCount:2,count:6},catalogueFetcher(endpoints));
+ for(const q of Object.values(p.text))assert.deepEqual(q.candidates.map(c=>c.provider),['good']);
+});

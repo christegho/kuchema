@@ -1,0 +1,75 @@
+flowchart LR
+  classDef hosted fill:#e4e4e4,stroke:#111,stroke-width:1.4px,color:#000
+  classDef local fill:#ffffff,stroke:#111,stroke-width:1.4px,stroke-dasharray:5 3,color:#000
+  classDef det fill:#ffffff,stroke:#666,stroke-width:1px,color:#000
+  classDef term fill:#ffffff,stroke:#111,stroke-width:1px,color:#000
+
+  IN(["Artist prompt"]):::term
+
+  subgraph SA["A · Selection"]
+    direction TB
+    a1["Sample archive photographs<br/>people: cut-out sources<br/>landscape and water: references<br/>one collage: composition reference"]:::det
+    a2["Select research passages<br/>by lexical match"]:::det
+    a1 --> a2
+  end
+
+  subgraph SB["B · Research"]
+    direction TB
+    b1["<b>Researcher</b><br/><i>Qwen3-30B-A3B-Instruct-2507</i><br/>with web search"]:::hosted
+    b2{"Citations<br/>verifiable?"}:::det
+    b3(["Halt"]):::term
+    b1 --> b2
+    b2 -- no --> b3
+  end
+
+  subgraph SC["C · Planning"]
+    direction TB
+    c1["<b>Visual director</b><br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>views all sampled photographs"]:::hosted
+    c2["Schema and rule validation<br/>fixed slots, permissions,<br/>no generated people"]:::det
+    c1 --> c2
+  end
+
+  subgraph SD["D · Material"]
+    direction TB
+    d0{"Slot<br/>type"}:::det
+    d1["Archive photograph<br/>of people, unaltered"]:::det
+    d2["<b>Image generator</b><br/><i>Seedream 4.5</i><br/>two reference photographs"]:::hosted
+    d3["Optional image treatment"]:::det
+    d0 -- people --> d1
+    d0 -- environment --> d2 --> d3
+  end
+
+  subgraph SE["E · Extraction"]
+    direction TB
+    e1["<b>Visual grounding</b><br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>box and point per subject"]:::hosted
+    e2["<b>Person detector</b><br/><i>YOLO11n</i>"]:::local
+    e3["<b>Segmenter</b><br/><i>SAM 2.1 tiny</i>"]:::local
+    e4{"Selective<br/>cut?"}:::det
+    e5["Set aside<br/>for retry"]:::det
+    e1 --> e2 --> e3 --> e4
+    e4 -- no --> e5
+  end
+
+  subgraph SF["F · Composition"]
+    direction TB
+    f1["Initial layout from plan"]:::det
+    f2["Layout optimisation<br/>coverage and occlusion limits"]:::det
+    f3["<b>Critic</b><br/><i>Qwen3-VL-235B-A22B-Instruct</i><br/>views cut-outs and draft"]:::hosted
+    f4{"Revise?"}:::det
+    f5["Apply revised layout<br/>and re-optimise"]:::det
+    f6["Final composite"]:::det
+    f1 --> f2 --> f3 --> f4
+    f4 -- yes --> f5 --> f6
+    f4 -- no --> f6
+  end
+
+  OUT(["Collage and<br/>provenance record"]):::term
+
+  IN --> SA --> SB --> SC --> SD --> SE --> SF --> OUT
+
+  subgraph KEY["Key"]
+    direction LR
+    k1["Hosted model"]:::hosted
+    k2["Local model"]:::local
+    k3["Deterministic step"]:::det
+  end

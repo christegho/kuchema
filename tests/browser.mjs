@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import {createStore} from '../server/store.js';
 import {createApp} from '../server/app.js';
 import {DEFAULT_GROUND} from '../shared/ground.js';
+import {researchLibrary} from '../server/research.js';
 process.env.OPENROUTER_API_KEY='browser-test-never-sent';
 const dir=await fs.mkdtemp(path.join(os.tmpdir(),'situated-browser-'));
 const store=await createStore(dir);
@@ -23,6 +24,8 @@ const cutBytes=await sharp({create:{width:600,height:400,channels:4,background:'
 const cut=await store.addImage(cutBytes,'prepared-fragment.png',{kind:'generated',derived:{segmenter:'test fixture',parentId:store.state.assets[0].id},allowCrop:true});
 store.state.project={title:'Prepared study',brief:'A cropped material study',strategy:'atlas',background:'#eeeedd',evidence:null,layers:[{id:'prepared-layer',assetId:cut.id,name:'Prepared fragment',kind:'generated',x:300,y:200,width:600,height:400,rotation:0,opacity:1,shape:'rectangle',points:[],crop:{x:0,y:0,zoom:1},visible:true,locked:false,note:'Composition-led cut'}]};
 await store.persist();
+// Match production startup: finish PDF indexing before accepting browser requests.
+await researchLibrary();
 const app=createApp(store);app.use(express.static(path.resolve('dist')));
 const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
 const url=`http://127.0.0.1:${server.address().port}`;
@@ -57,6 +60,20 @@ try{
  await page.screenshot({path:'test-results/installation-desktop.png',fullPage:true});
  await page.getByRole('navigation').getByRole('button',{name:/Archive/}).click();
  assert.equal(await page.locator('.archive-grid article').count(),5);
+ assert.equal(await page.getByRole('radio',{name:'Use full archive · 5 images',exact:true}).isChecked(),true);
+ assert.equal(await page.locator('.archive-grid input[type=checkbox]').count(),0);
+ await page.getByRole('radio',{name:'Choose specific images',exact:true}).check();
+ await page.locator('.archive-grid input[type=checkbox]').first().check();
+ assert.equal(await page.locator('.archive-grid input:checked').count(),1);
+ await page.getByRole('radio',{name:'Use full archive · 5 images',exact:true}).check();
+ assert.equal(await page.locator('.archive-grid input[type=checkbox]').count(),0);
+ await page.getByRole('tab',{name:/Research/}).click();
+ assert.equal(await page.locator('.research-documents article').count(),26);
+ await page.locator('.research-documents details').first().locator('summary').click();
+ await page.locator('.research-documents input').first().check();
+ await page.screenshot({path:'test-results/research-archive-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'Clear 1 selected research files'}).click();
+ await page.getByRole('tab',{name:'Images',exact:true}).click();
  await page.getByLabel('Search archive').fill('water');assert.equal(await page.locator('.archive-grid article').count(),2);
  await page.getByLabel('Search archive').fill('');await page.locator('.archive-image').first().click();
  await page.getByLabel('Locality',{exact:true}).fill('A documented test locality');
@@ -98,13 +115,18 @@ try{
  const uploaded=await sharp({create:{width:600,height:400,channels:3,background:'#aaa'}}).png().toBuffer();
  await page.locator('input[type=file]').first().setInputFiles({name:'browser-upload.png',mimeType:'image/png',buffer:uploaded});
  await until(()=>store.state.assets.length===7);await page.getByText('browser-upload',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('radio',{name:'Use full archive · 6 images',exact:true}).isChecked(),true);
  await page.screenshot({path:'test-results/archive-desktop.png',fullPage:true});
  await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
+ await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
+ await page.getByLabel('Research files',{exact:true}).selectOption('10');
+ await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.deepEqual(route.request().postDataJSON().ids,[],'The default must sample the full archive, including new images and regardless of browsing.');
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,6);assert.equal(body.researchCount,10);assert.deepEqual(body.researchIds,[]);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);
