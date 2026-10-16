@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import {archiveCounts} from './archive.js';
+import {providerImageLimit} from './provider-limits.js';
 
 export const MAX_COST = 1.00;
 export const TOKEN_PRICE_LIMIT = { prompt: .3, completion: 2 }; // Legacy quote defaults, USD / million tokens
@@ -79,6 +81,7 @@ export function compareProviderHealth(a,b){
 
 export async function pricingPlan(options,fetcher=fetch){
   const {generatedCount=0,count=10,imageModel='economy'}=options;
+  const counts=archiveCounts(count),imageCounts=options.imageCounts||{research:0,vision:count,planner:counts.general+counts.water+counts.composition+counts.people};
   const get=async url=>{const r=await fetcher(url,{signal:AbortSignal.timeout(20000)});if(!r.ok)throw new Error('Cannot verify current model prices. No paid work was started.');return r.json();};
   const catalog=await get('https://openrouter.ai/api/v1/models');
   const text={},endpoints=new Map(),candidates={};
@@ -87,11 +90,13 @@ export async function pricingPlan(options,fetcher=fetch){
     const maxTokens=role==='research'?2000:role==='vision'?(count>10?6500:4000):(count>10?10000:5000);
     if(!endpoints.has(id))endpoints.set(id,await get(`https://openrouter.ai/api/v1/models/${id}/endpoints`));
     const eligible=(endpoints.get(id)?.data?.endpoints||[]).filter(e=>e.tag&&(e.status===undefined||e.status===0)&&Number.isInteger(e.context_length)&&e.context_length>0&&e.context_length<=262144&&e.supported_parameters?.includes('response_format')&&(role==='research'||e.supported_parameters?.includes('structured_outputs'))&&(!e.max_completion_tokens||e.max_completion_tokens>=maxTokens));
-    candidates[role]=[...new Map(eligible.map(e=>textCandidate(e,maxTokens,role==='research')).filter(Boolean).map(e=>[e.provider,e])).values()];
-    if(!candidates[role].length)throw new Error(`No bounded structured-output provider available for ${id}.`);
+    const imageCount=imageCounts[role]??0;
+    if(!Number.isSafeInteger(imageCount)||imageCount<0)throw new Error('Invalid input image count for provider selection.');
+    candidates[role]=[...new Map(eligible.filter(e=>imageCount<=providerImageLimit(id,e.tag)).map(e=>textCandidate(e,maxTokens,role==='research')).filter(Boolean).map(e=>[e.provider,e])).values()];
+    if(!candidates[role].length)throw new Error(`No bounded structured-output provider available for ${id} with ${imageCount} input images. No paid calls were made.`);
     // First establish a feasible full workflow; spend spare capacity on alternatives below.
     candidates[role].sort((a,b)=>a.bound-b.bound||compareProviderHealth(a,b));
-    text[role]={id,maxTokens,candidates:[candidates[role][0]],bound:candidates[role][0].bound};
+    text[role]={id,maxTokens,imageCount,candidates:[candidates[role][0]],bound:candidates[role][0].bound};
   }
   const images=[];
   if(generatedCount||imageModel==='gpt-image'){

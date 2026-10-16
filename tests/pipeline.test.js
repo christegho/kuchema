@@ -59,7 +59,9 @@ function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mu
   return json({summary:'Water follows terrain',findings:[{claim:'Flow',url:'https://example.org/water'}],uncertain:[],mustNotInfer:[]},noCitations?[]:[{type:'url_citation',url_citation:{url:'https://example.org/water'}}]);
  };
 }
-const input=extra=>creationInput.parse({prompt:'Water, surfaces and a gathering',requestId:randomUUID(),...extra});
+// These small synthetic fixtures intentionally test six components; production
+// defaults are exercised separately by the ten-image regression below.
+const input=extra=>creationInput.parse({prompt:'Water, surfaces and a gathering',requestId:randomUUID(),count:6,...extra});
 
 test('coverage and occlusion checks warn without withholding a rendered image',()=>{
  const warnings=compositionWarnings({coverage:.982,distinctVisible:5},6);
@@ -351,4 +353,24 @@ test('research upstream rate limit switches providers and the same study continu
  assert.equal(job.status,'complete',job.error);assert.deepEqual(seen,['dekallm','nebius/fp8']);assert.equal(job.providerAttempts.length,2);
  assert.equal(job.ledger[0].status,'uncertain');assert.ok(job.ledger.reduce((n,r)=>n+r.reserved,0)<=1);
  assert.ok(job.project.layers.length);assert.ok(job.warnings.some(w=>w.includes('continued with nebius/fp8')));
+});
+
+test('ten-image collage plans with all thirteen archive references while bypassing Venice',async t=>{
+ const store=await officialFixture(t),calls=[];let checkedCounts;
+ const imageAwarePrices=async options=>{
+  checkedCounts=options.imageCounts;
+  const p=await prices(options);
+  p.text.planner={...p.text.planner,bound:.08,candidates:[{provider:'venice/fp8',bound:.04,maxPrice:{prompt:.3,completion:2},uptime:100},{provider:'deepinfra/fp8',bound:.04,maxPrice:{prompt:.3,completion:2},uptime:99}]};
+  p.total+=.08;return p;
+ };
+ const pipeline=new CreationPipeline(store,{prices:imageAwarePrices,vision:fakeVision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
+ const job=await pipeline.start(input({count:undefined}));await pipeline.running;
+ assert.equal(job.count,10);
+ assert.equal(job.status,'complete',job.error);
+ assert.deepEqual(checkedCounts,{research:0,planner:13,vision:10});
+ const planning=calls.find(c=>c.body.response_format?.json_schema?.name==='advance_collage_plan').body;
+ assert.deepEqual(planning.provider.only,['deepinfra/fp8']);assert.equal(planning.messages[1].content.filter(p=>p.type==='image_url').length,13);
+ assert.equal(calls.filter(c=>c.endpoint==='images').length,6);assert.equal(job.plan.images.length,10);
+ assert.equal(job.ledger.filter(r=>r.label.startsWith('Advance collage plan')).length,1);
+ assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
 });

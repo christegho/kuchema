@@ -14,6 +14,40 @@ function fixture(request){
  return {job,get saves(){return saves;},args:{job,budget:new Budget(job,persist),quote:{candidates,bound:.1},label:'Context search',body:{model:'qwen/test',messages:[],max_tokens:2000},request,persist}};
 }
 
+const visualBody=count=>({model:'qwen/qwen3-vl-235b-a22b-instruct',messages:[{role:'user',content:Array.from({length:count},(_,i)=>({type:'image_url',image_url:{url:`https://example.test/${i}.png`}}))}]});
+test('oversized visual requests skip Venice without charging or dropping references',async()=>{
+ const sent=[],f=fixture(async(_,body)=>{sent.push(body);return {usage:{cost:.001}};});
+ const quote={candidates:[{...candidates[0],provider:'venice/fp8'},candidates[1]]};
+ await routedTextCall({...f.args,quote,body:visualBody(13)});
+ assert.equal(sent.length,1);assert.deepEqual(sent[0].provider.only,['nebius/fp8']);assert.equal(sent[0].messages[0].content.length,13);
+ assert.equal(f.job.ledger.length,1);assert.equal(f.args.budget.committed,.06);
+ const blocked=fixture(async()=>{throw new Error('Must not send');});
+ await assert.rejects(routedTextCall({...blocked.args,quote:{candidates:[quote.candidates[0]]},body:visualBody(11)}),/No checked provider/);
+ assert.equal(blocked.job.ledger.length,0);
+ const boundary=fixture(async(_,body)=>{assert.deepEqual(body.provider.only,['venice/fp8']);return {usage:{cost:.001}};});
+ await routedTextCall({...boundary.args,quote,body:visualBody(10)});
+});
+
+test('an unexpected provider image-count rejection switches providers with unchanged images and bounded cost',async()=>{
+ const bodies=[],f=fixture(async(_,body)=>{
+  bodies.push(body);
+  if(bodies.length===1)throw new RouterError('Provider returned error: At most 10 image(s) may be provided in one request.',{status:400,code:400});
+  return {usage:{cost:.001}};
+ });
+ await routedTextCall({...f.args,body:visualBody(13)});
+ assert.equal(bodies.length,2);assert.deepEqual(bodies[0].messages,bodies[1].messages);
+ assert.equal(f.job.ledger[0].status,'uncertain');assert.equal(f.args.budget.committed,.1);
+ assert.equal(retryableProviderError(new RouterError('At most 10 image(s) may be provided in one request.',{code:400}),10),false);
+ assert.equal(retryableProviderError(new RouterError('Invalid request parameters',{code:400}),13),false);
+});
+
+test('image-count limits survive truncation of long upstream validation errors',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const raw=JSON.stringify({details:'x'.repeat(600),issues:[{code:'custom',message:'At most 10 image(s) may be provided in one request.',path:['messages',1,'content','content']}]});
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify({error:{code:400,message:'Provider returned error',metadata:{provider_name:'Venice',raw}}}),{status:400}));
+ await assert.rejects(routerRequest('chat/completions',{}),error=>error.message.length<=500&&error.maxInputImages===10&&retryableProviderError(error,13));
+});
+
 test('a rate-limited provider switches to the next checked provider with both attempts reserved',async()=>{
  const sent=[],f=fixture(async(endpoint,body)=>{
   assert.equal(endpoint,'chat/completions');assert.ok(f.saves>sent.length);sent.push(body);

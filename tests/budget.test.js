@@ -46,6 +46,17 @@ test('premium token pricing fails closed before any charge',()=>{
 const endpoint=(tag,prompt=.0000001,completion=.0000004,extra={})=>({tag,provider_name:tag,context_length:131072,pricing:{prompt,completion},supported_parameters:['response_format','structured_outputs'],uptime_last_30m:99,...extra});
 const catalogueFetcher=endpoints=>async url=>({ok:true,json:async()=>url.endsWith('/models')?{data:Object.values(TEXT_MODELS).map(id=>({id}))}:url.includes('/images/')?quote():{data:{endpoints}}});
 
+test('image-aware preflight excludes Venice from oversized steps while retaining it at ten images',async()=>{
+ const fetcher=catalogueFetcher([endpoint('venice/fp8'),endpoint('deepinfra/fp8')]);
+ const p=await pricingPlan({count:10,generatedCount:6,imageCounts:{research:0,planner:13,vision:10}},fetcher);
+ assert.deepEqual(p.text.planner.candidates.map(c=>c.provider),['deepinfra/fp8']);
+ assert.ok(p.text.vision.candidates.some(c=>c.provider==='venice/fp8'));assert.ok(p.total<=1);
+ const large=await pricingPlan({count:20,generatedCount:12},fetcher);
+ assert.equal(large.text.planner.imageCount,23);
+ for(const role of ['planner','vision'])assert.equal(large.text[role].candidates.some(c=>c.provider==='venice/fp8'),false);
+ await assert.rejects(pricingPlan({count:10,generatedCount:6},catalogueFetcher([endpoint('venice/fp8')])),/13 input images.*No paid calls/);
+});
+
 test('provider pools admit healthier, more expensive alternatives beyond the old token-price ceiling',async()=>{
  const p=await pricingPlan({generatedCount:2,count:6},catalogueFetcher([endpoint('cheap'),endpoint('fast',.0000005,.000003,{uptime_last_30m:100,throughput_last_30m:150})]));
  for(const q of Object.values(p.text)){

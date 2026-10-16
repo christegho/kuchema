@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import {reportedImageLimit} from './provider-limits.js';
 
 export const imageModels = [
   {id:'bytedance-seed/seedream-4.5',name:'Seedream 4.5',label:'Reference-aware material',estimate:'Live price checked',refs:2,resolution:'2K'},
@@ -8,10 +9,10 @@ export const imageModels = [
 ];
 
 export class RouterError extends Error {
-  constructor(message,{status,code,provider}={}){super(message);this.name='RouterError';this.status=status;this.code=code;this.provider=provider;}
+  constructor(message,{status,code,provider,maxInputImages=reportedImageLimit(message)}={}){super(message);this.name='RouterError';this.status=status;this.code=code;this.provider=provider;this.maxInputImages=maxInputImages;}
 }
-export function retryableProviderError(error){
-  if(error instanceof RouterError)return [404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status);
+export function retryableProviderError(error,imageCount=0){
+  if(error instanceof RouterError)return [404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
   return ['TimeoutError','AbortError'].includes(error?.name)||['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(error?.cause?.code);
 }
 
@@ -28,7 +29,7 @@ export async function routerRequest(endpoint, body) {
   if (!response.ok || result.error) {
     const detail=result.error?.metadata;
     const message = String((result.error?.message || `OpenRouter returned ${response.status}`)+(detail?.provider_name?` (${detail.provider_name})`:'')+(typeof detail?.raw==='string'?`: ${detail.raw}`:'')).replace(/sk-[\w-]+/g, '[redacted]');
-    throw new RouterError(message.slice(0, 500),{status:response.status,code:Number(result.error?.code)||response.status,provider:detail?.provider_name});
+    throw new RouterError(message.slice(0, 500),{status:response.status,code:Number(result.error?.code)||response.status,provider:detail?.provider_name,maxInputImages:reportedImageLimit(message)});
   }
   return result;
 }

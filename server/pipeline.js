@@ -175,7 +175,7 @@ export class CreationPipeline {
   job.treatmentBudget=treatmentBudget(generatedCount);
   job.humanContextIds=humanContext.map(a=>a.id);
   job.retrieval=contextArchive.map(a=>({id:a.id,category:a.archive?.category,contextOnly:!archive.some(source=>source.id===a.id)}));
-  const pricing=await this.prices({generatedCount,count:job.count,imageModel:job.imageModel});job.pricing=pricing;job.requestedMaterials=generatedCount;
+  const pricing=await this.prices({generatedCount,count:job.count,imageModel:job.imageModel,imageCounts:{research:0,vision:job.count,planner:Math.max(contextArchive.length,2)}});job.pricing=pricing;job.requestedMaterials=generatedCount;
   if(job.referenceAssignments&&pricing.images[0]?.referenceLimit<2)throw new Error('The selected model must support two safely priced image references per generated component. No paid calls were made.');
   // Preflight every planned call before the first charge, including transformed-image grounding and review.
   if(pricing.total>MAX_COST)throw new Error('This configuration exceeds $1.00. No paid calls were made.');
