@@ -110,8 +110,8 @@
 <path d="M710.0,837.0 L710.0,859.0 L1020.0,859.0 L1020.0,919.0" fill="none" stroke="#333" stroke-width="1.3" marker-end="url(#arrow)"/>
 <path d="M244.5,967.0 L40.0,967.0 L40.0,671.0 L157.7,671.0" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
 <path d="M1150.0,967.0 L1380.0,967.0 L1380.0,283.0 L1303.5,283.0" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
-<text transform="translate(28,819.0) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic">each interaction starts a new collage</text>
-<text transform="translate(1400,625.0) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic">creative feedback refines the direction and rules</text>
+<text transform="translate(28.0,819.0) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic">each interaction starts a new collage</text>
+<text transform="translate(1400.0,625.0) rotate(-90)" text-anchor="middle" font-size="13" font-style="italic">creative feedback refines the direction and rules</text>
 <text x="70" y="1081" font-size="13" font-weight="bold">Key</text>
 <rect x="116" y="1065" width="40" height="22" rx="11" fill="#ffffff" stroke="#111" stroke-width="1.2" stroke-dasharray="2 3"/>
 <text x="166" y="1081" font-size="13">Community contributors</text>
