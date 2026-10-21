@@ -15,12 +15,14 @@ export const creationInput=z.object({
 });
 const placement=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().min(.1).max(1.8),rotation:z.number().min(-35).max(35)});
 // relationships maps every selected passage to the visual relationship or layout consequence it creates
-// (studies before 19 Oct recorded `papers` instead).
-const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200),relationships:z.record(z.string().max(100),z.string().max(400)).optional(),papers:z.record(z.string().max(100),z.string().max(400)).optional()});
+// (studies before 19 Oct recorded `papers` instead). Free-form records are for reading saved plans only:
+// providers receive fixed keys, because some grammar engines reject `propertyNames`.
+const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200)});
+const savedComposition=researchComposition.extend({relationships:z.record(z.string().max(100),z.string().max(400)).optional(),papers:z.record(z.string().max(100),z.string().max(400)).optional()});
 const edge=z.enum(['clean','torn']);
 // A detail is an extra cut from a generated image at another scale; it shares that image's treatment.
 const detail=z.object({key:z.string().max(30),sourceKey:z.string().max(30),label:z.string().max(120),segment:z.string().max(300),boundary:z.enum(['silhouette','residue','field']),tier:z.enum(TIERS),edge,placement,reason:z.string().max(500)});
-export const advanceSchema=z.object({researchComposition:researchComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(30).optional(),details:z.array(detail).max(6).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
+export const advanceSchema=z.object({researchComposition:savedComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(30).optional(),details:z.array(detail).max(6).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
  researchIds:z.array(z.string().max(100)).max(10).optional(),researchIntent:z.string().max(600).optional(),
  key:z.string().max(30),sourceId:z.string().max(100).nullable(),label:z.string().max(120),prompt:z.string().max(1200),segment:z.string().max(300),reason:z.string().max(500),referenceIds:z.array(z.string().max(100)).max(2),
  role:z.enum(['environment','people','material']),boundary:z.enum(['silhouette','residue','field','whole']),transform:z.object({type:z.enum(TRANSFORMS),strength:z.number().min(.1).max(1),reason:z.string().max(500)}),placement,
@@ -55,7 +57,7 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  // Fixed detail slots, each tied to one generated image, keep extra cuts within the plan's reach.
  const plannedPlacement=placement.extend({width:z.number().min(.06).max(.9)});
  const details=Object.fromEntries(Object.entries(job.detailAssignments||{}).map(([key,sourceKey])=>[key,detail.extend({key:z.literal(key),sourceKey:z.literal(sourceKey),segment:z.string().min(8).max(300),edge:job.tornEdges?edge:z.literal('clean'),placement:plannedPlacement})]));
- return advanceSchema.extend({...(Object.keys(details).length?{details:z.object(details)}:{}),...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),relationships:z.object(Object.fromEntries(job.researchDocuments.map(d=>[d.id,z.string().min(30).max(400)])))})}:{}),layerOrder:z.array(z.enum([...Object.keys(slots),...Object.keys(details)])).length(job.count+Object.keys(details).length),images:z.object(slots)});
+ return advanceSchema.extend({...(Object.keys(details).length?{details:z.object(details)}:{}),researchComposition:job.researchDocuments?researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),relationships:z.object(Object.fromEntries(job.researchDocuments.map(d=>[d.id,z.string().min(30).max(400)])))}):researchComposition.optional(),layerOrder:z.array(z.enum([...Object.keys(slots),...Object.keys(details)])).length(job.count+Object.keys(details).length),images:z.object(slots)});
 }
 
 export function validateAdvance(plan,archive,job,generatedCount,referenceArchive=archive){

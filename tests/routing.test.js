@@ -158,6 +158,22 @@ test('later steps avoid recently failed providers when another eligible provider
  await routedTextCall({...f.args,unavailable:new Set(['dekallm'])});assert.deepEqual(sent,['nebius/fp8']);
 });
 
+test('a provider whose grammar engine rejects the response schema fails over to the next provider',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const quote={candidates:[{...candidates[0],provider:'parasail/fp8',name:'Parasail'},{...candidates[1],provider:'deepinfra/fp8',name:'DeepInfra'}]},sent=[];
+ t.mock.method(globalThis,'fetch',async(_,options)=>{
+  sent.push(JSON.parse(options.body).provider.only[0]);
+  // As observed: HTTP 200 with an error body once the provider tries to compile the grammar.
+  if(sent.length===1)return Response.json({error:{code:400,message:'Upstream error from Parasail: Grammar error: Unimplemented keys: ["propertyNames"]'}});
+  return Response.json({provider:'DeepInfra',choices:[{finish_reason:'stop',message:{content:'{}'}}],usage:{cost:.001}});
+ });
+ const f=fixture(routerRequest),result=await routedTextCall({...f.args,quote,body:{model:'qwen/test',messages:[],max_tokens:2000,response_format:{type:'json_schema'}}});
+ assert.equal(result.provider,'DeepInfra');assert.deepEqual(sent,['parasail/fp8','deepinfra/fp8']);
+ assert.equal(f.job.providerAttempts[0].code,400);assert.match(f.job.providerAttempts[0].error,/Grammar error/);
+ for(const message of ['Grammar error: Unimplemented keys','Invalid JSON schema for response_format','guided decoding failed','structured output is not supported'])assert.ok(retryableProviderError(new RouterError(message,{status:400,code:400})),message);
+ assert.equal(retryableProviderError(new RouterError('Invalid prompt',{status:400,code:400})),false);
+});
+
 test('auth, credit, invalid-input and malformed-content errors never trigger provider retries',async()=>{
  for(const error of [new RouterError('Credits exhausted',{status:402,code:402}),new RouterError('Invalid key',{status:401,code:401}),new RouterError('Invalid prompt',{status:400,code:400}),new Error('Incomplete JSON'),new TypeError('Programming bug')]){
   let attempts=0;const f=fixture(async()=>{attempts++;throw error;});

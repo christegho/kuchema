@@ -67,3 +67,13 @@ Plan: ~/.claude/plans/fancy-hugging-mochi.md
 - Research 3–6 passages (default 4), ≥2 lead images, relationships for every passage; references 2+2 (3+3 above 12 images); open-access folder imported but never referenced until licences exist.
 - Several cuts per image: fixed detail slots (12–21 fragments), tiers with soft warning, per-fragment grounding/cuts/coverage/retries, review omissions restored. Torn-paper edges on generated fragments (people always clean).
 - npm test 105/105 (9.4 min under load avg ~26 and 17 GB swap), build ok, browser suite passes. New code verified booting on port 3101 with temp data, then stopped. User's own server (pid 31678, 17 Oct) still runs the old code on :3000.
+
+# Grammar error: Unimplemented keys ["propertyNames"] (study 96cddd45, 21 Oct)
+
+Root cause: the planning schema kept the legacy `papers` record under researchComposition; zod emits `propertyNames` for records and Parasail's grammar engine rejects it. The 400 was non-retryable, so the study halted before trying DeepInfra.
+
+- [x] Provider-facing schemas carry no records (saved plans still parse legacy `papers`/`relationships`)
+- [x] `server/structured.js`: only keywords proven with all providers are sent; anything else is stripped (zod still validates answers) and recorded on the decision
+- [x] Grammar rejections (400/422 grammar / JSON schema / guided decoding) fail over to the next provider
+- [x] Tests: keyword audit across 11 study configurations + grounding + critique; guard strips `propertyNames`; failover on the observed error. `npm test` 108/108
+- [x] Live check (`scripts/check-structured-outputs.mjs`): all 3 schemas accepted by Parasail, DeepInfra and Venice; control with the old schema reproduces the Parasail error. Cost < $0.001.

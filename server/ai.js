@@ -17,8 +17,11 @@ export class RouterError extends Error {
 // or body data, so a longer deadline would not take effect.
 export const REQUEST_DEADLINE_MS=300000;
 const timedOut=error=>['TimeoutError','AbortError'].includes(error?.name)||['UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT'].includes(error?.cause?.code);
+// A provider whose decoding engine cannot compile the response schema may still be
+// replaced by another provider whose engine can.
+const grammarRejected=error=>[400,422].includes(error.code)&&/grammar|unimplemented keys|json[ _-]?schema|guided decod|structured output/i.test(error.message);
 export function retryableProviderError(error,imageCount=0){
-  if(error instanceof RouterError)return ['TIMEOUT','TRUNCATED','MALFORMED_JSON'].includes(error.code)||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
+  if(error instanceof RouterError)return ['TIMEOUT','TRUNCATED','MALFORMED_JSON'].includes(error.code)||grammarRejected(error)||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
   return timedOut(error)||['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(error?.cause?.code);
 }
 
