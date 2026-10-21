@@ -9,9 +9,10 @@ const canvasArea=1600*1000;
 // disguise a whole stack of hidden images. Rectangles alone do not prove coverage.
 export async function coverageReader(store,materials,{width=320,height=200}={}){
  const masks=new Map();
- for(const m of materials){const a=m.asset;const image=await sharp(path.join(store.root,'media',`${a.id}.png`)).resize(240,240,{fit:'inside'}).ensureAlpha().raw().toBuffer({resolveWithObject:true});masks.set(a.id,{...image,rootId:m.rootId||a.rootId||a.id});}
+ // Visibility is kept per fragment (several cuts can share one source image) and per source image.
+ for(const m of materials){const a=m.asset;const image=await sharp(path.join(store.root,'media',`${a.id}.png`)).resize(240,240,{fit:'inside'}).ensureAlpha().raw().toBuffer({resolveWithObject:true});masks.set(a.id,{...image,key:m.key||m.rootId||a.rootId||a.id,rootId:m.rootId||a.rootId||a.id});}
  return project=>{
-  const W=width,H=height,N=W*H,remaining=new Float32Array(N).fill(1),visible={},footprints={};
+  const W=width,H=height,N=W*H,remaining=new Float32Array(N).fill(1),visible={},footprints={},rootVisible={};
   for(const l of [...project.layers].reverse()){
    if(!l.visible||!l.assetId)continue;
    const m=masks.get(l.assetId);if(!m)continue;
@@ -23,13 +24,14 @@ export async function coverageReader(store,materials,{width=320,height=200}={}){
     const alpha=m.data[(Math.floor(v*m.info.height)*m.info.width+Math.floor(u*m.info.width))*4+3]/255*l.opacity;
     const i=y*W+x;pixels+=remaining[i]*alpha;footprint+=alpha;remaining[i]*=1-alpha;
    }
-   visible[m.rootId]=(visible[m.rootId]||0)+pixels/N;
-   footprints[m.rootId]=(footprints[m.rootId]||0)+footprint/N;
+   visible[m.key]=(visible[m.key]||0)+pixels/N;rootVisible[m.rootId]=(rootVisible[m.rootId]||0)+pixels/N;
+   footprints[m.key]=(footprints[m.key]||0)+footprint/N;
   }
   let filled=0;for(const r of remaining)if(r<.1)filled++;
   const retention=Object.fromEntries(Object.keys(visible).map(id=>[id,footprints[id]?visible[id]/footprints[id]:0]));
-  const obscuredIds=Object.keys(visible).filter(id=>retention[id]<COMPOSITION_LIMITS.minRetention||visible[id]<COMPOSITION_LIMITS.minVisible);
-  return {coverage:filled/N,visible,footprints,retention,obscuredIds,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(visible).filter(n=>n>=.002).length};
+  // A small detail is not obscured just for being small: compare it with its own footprint.
+  const obscuredIds=Object.keys(visible).filter(id=>retention[id]<COMPOSITION_LIMITS.minRetention||visible[id]<Math.min(COMPOSITION_LIMITS.minVisible,.4*footprints[id]));
+  return {keyedBy:'fragment',coverage:filled/N,visible,footprints,retention,obscuredIds,rootVisible,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(rootVisible).filter(n=>n>=.002).length};
  };
 }
 
@@ -41,11 +43,11 @@ function bounded(layer,asset){
  const factor=Math.min(1,Math.sqrt(COMPOSITION_LIMITS.maxLayerArea*canvasArea/(layer.width*layer.height)),asset.width*MAX_WORK_UPSCALE/layer.width,asset.height*MAX_WORK_UPSCALE/layer.height);
  return factor<1?resized(layer,factor):layer;
 }
-export async function fillComposition(store,project,materials,count){
- const measure=await coverageReader(store,materials,{width:160,height:100}),changes=[];
+export async function fillComposition(store,project,materials){
+ const measure=await coverageReader(store,materials,{width:160,height:100}),changes=[],count=new Set(materials.map(m=>m.rootId||m.asset.rootId||m.asset.id)).size;
  const assets=new Map(materials.map(m=>[m.asset.id,m.asset]));
  const quality=p=>{
-  const m=measure(p),hidden=Object.keys(m.visible).reduce((n,id)=>n+Math.max(0,COMPOSITION_LIMITS.minVisible-m.visible[id])*35+Math.max(0,COMPOSITION_LIMITS.minRetention-m.retention[id])*.65,0);
+  const m=measure(p),hidden=Object.keys(m.visible).reduce((n,id)=>n+Math.max(0,Math.min(COMPOSITION_LIMITS.minVisible,.4*m.footprints[id])-m.visible[id])*35+Math.max(0,COMPOSITION_LIMITS.minRetention-m.retention[id])*.65,0);
   return {m,score:m.coverage-hidden-(count-m.distinctVisible)*.4-Math.max(0,m.dominantShare-COMPOSITION_LIMITS.maxLayerArea)*5};
  };
  project.layers=project.layers.map(l=>{

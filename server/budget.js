@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {archiveCounts} from './archive.js';
 import {providerImageLimit} from './provider-limits.js';
+import {detailCount} from './fragments.js';
 
 // Spending ceiling per creation in USD. Set CREATION_COST_LIMIT in .env to change it.
 export const MAX_COST=(limit=>Number.isFinite(limit)&&limit>0?limit:5)(Number(process.env.CREATION_COST_LIMIT));
@@ -92,7 +93,8 @@ export async function pricingPlan(options,fetcher=fetch){
     // Plans grow with every slot: about 500–700 output tokens each plus shared fields
     // (a 12-image plan used ~6,200; a 10-image plan overran 5,000). Keep ~1.7× headroom
     // within the 16,384 tokens every planner endpoint accepts.
-    const maxTokens=role==='research'?2000:role==='vision'?(count>10?6500:4000):Math.min(16000,2000+900*count);
+    // Detail cuts add a smaller slot each and one more region to locate.
+    const details=detailCount(count),maxTokens=role==='research'?2000:role==='vision'?Math.min(8000,2500+250*(count+details)):Math.min(16000,2000+900*count+300*details);
     if(!endpoints.has(id))endpoints.set(id,await get(`https://openrouter.ai/api/v1/models/${id}/endpoints`));
     const eligible=(endpoints.get(id)?.data?.endpoints||[]).filter(e=>e.tag&&(e.status===undefined||e.status===0)&&Number.isInteger(e.context_length)&&e.context_length>0&&e.context_length<=262144&&e.supported_parameters?.includes('response_format')&&(role==='research'||e.supported_parameters?.includes('structured_outputs'))&&(!e.max_completion_tokens||e.max_completion_tokens>=maxTokens));
     const imageCount=imageCounts[role]??0;

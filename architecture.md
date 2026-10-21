@@ -76,9 +76,9 @@ flowchart TB
   subgraph S1["1 · Preflight, nothing spent"]
     direction TB
     C1["Checks: API key, local models installed,<br/>one collage at a time"]
-    C2["Pick archive photos at random<br/>4–8 people photos to crop<br/>at least 2 general and 2 water photos as references<br/>1 style-guide collage for composition only"]
+    C2["Pick archive photos at random<br/>2–8 people photos to crop (leaving 3 generated)<br/>2+2 general and water references, 3+3 above 12 images<br/>1 style-guide collage for composition only"]
     C3["Generated images = total minus people photos"]
-    C4["Pick 6–10 research files by keyword score<br/>at least 3 speculative texts and 3 papers, 2 passages each<br/>each text leads one generated slot"]
+    C4["Pick 3–6 research passages by keyword score<br/>one per file; at least 2 lead a generated slot<br/>every passage states a relationship"]
     C5["Live price check on OpenRouter<br/>up to 3 providers per role within budget"]
     C6{"Worst case over the cost cap?<br/>($5.00 by default)"}
     C1 --> C2 --> C3 --> C4 --> C5 --> C6
@@ -110,12 +110,12 @@ flowchart TB
 
   subgraph S4["4 · Cut out the parts"]
     direction TB
-    G1["Grounding on untreated images<br/>Qwen3 VL 235B A22B<br/>one box and point per image"]:::paid
+    G1["Grounding on untreated images<br/>Qwen3 VL 235B A22B<br/>one box and point per fragment:<br/>a primary cut per image, detail cuts from generated images"]:::paid
     G2["Detect people<br/>YOLO11n"]:::local
     G3["Segment<br/>SAM 2.1 tiny<br/>field, silhouette or residue edge"]:::local
     G4{"Clean, selective cut?"}
     G5["Save as a failed part<br/>retry later without paid calls"]
-    G6["Treat the whole image in code,<br/>crop with the SAM box and alpha"]
+    G6["Treat the whole image once in code,<br/>crop each cut with its SAM box and alpha,<br/>then an optional torn-paper edge (never people)"]
     G1 -- "for each image" --> G2 --> G3 --> G4
     G4 -- no --> G5
     G4 -- yes --> G6

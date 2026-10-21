@@ -1,106 +1,90 @@
-KUCHEMA: THE GATHERING
-CREATIVE IMAGE-GENERATION PROMPT
+KUCHEMA — Speculative Photographic Collage
 
-1. CREATIVE PURPOSE
+Create a visually rich, speculative photographic collage rooted in the landscapes, communities, ecological knowledge and cultural imaginaries of Chikukwa, Chimanimani, Zimbabwe.
 
-Generate speculative photographic collages rooted in Chikukwa, Chimanimani, Zimbabwe. Bring the project's photographs, community knowledge, water cosmologies, mythological narratives and ecological futures into imaginative relationships. The images should move beyond rearranging existing photographs, while referencing the style of Chipo Mapondera's own collages in the project archive.
+The collage should imagine alternative environmental futures through relationships between water, land, people, plants, animals, ancestral memory and ecological regeneration.
 
-Work from the approved photographic archive, research TXT files, academic papers and youth climate-futures collages. For every creation, use 6–10 distinct selected local research files: at least three speculative texts each lead a newly generated fragment, and at least three academic papers shape the composition. Explain how cited passages influence subjects, scale, overlap, rhythm and spatial relationships; record the source files and passages used. Research complements all archive-image rules in section 7. Let these sources shape how images are constructed, rather than simply supplying symbols to illustrate. Follow Chipo's creative direction and reference the ownership of original creators.
+The visual language should resemble physical collages assembled from photographic prints, magazine cuttings and archival material, rather than digital illustrations, paintings or seamless AI-generated scenes.
 
-2. VISUAL LANGUAGE
+A. Research and narrative grounding
 
-Primary style reference: Chipo Mapondera's collages in:
-/Users/chipo/Documents/kuchema-the-gathering/ai-development/kuchema/archive
-(~/Documents/kuchema-the-gathering/ai-development/kuchema/archive)
+Use a small, carefully selected collection of local research materials to guide each composition.
 
-Review the artist's collages in this folder before developing visual prompts. Use their composition, layering, cut-out treatment, colour relationships, spatial experimentation and visual rhythm to guide new outputs. Distinguish the artist's finished collages from source photographs and other archive material. The three supplied AI examples show the current system's output; they should not replace the artist's work as the primary stylistic reference. Create new compositions rather than copies of individual works.
+Draw from Indigenous ecological knowledge, water cosmologies, community narratives, oral histories, myths, academic research and youth visions of environmental futures.
 
-Preserve photographic cut-outs, overlapping landscapes, visible collage edges, abrupt changes of scale, fragmented perspectives and purposeful gaps. Keep the textures of water, rock, soil, vegetation and contemporary clothing. Allow different lighting and viewpoints to coexist. The image should remain visibly assembled rather than becoming a seamless fantasy painting.
+Translate relevant narratives into specific visual subjects, environments, relationships and transformations.
 
-Introduce newly generated environmental fragments informed by the permitted archive references and selected local research that transform the relationships within the composition. A photographed pool might open onto an imagined root chamber; mountain contours might recur inside clouds; microscopic organisms might occupy landscape scale. Each addition should deepen the image rather than decorate it.
+For example:
+- A narrative about water spirits might inspire reflections, submerged landscapes, thresholds between water and land, or unexpected ecological relationships.
+- Research about soil conservation might inspire terraced landscapes, regenerating vegetation and relationships between water, soil and agricultural practices.
+- Stories about ancestral relationships with sacred environments might inspire layered temporalities, intergenerational gatherings and landscapes where past and future coexist.
 
-Vary compositions: dense gatherings, sparse landscapes, ecological constellations, interrupted horizons and movements between earth, water and sky. Not every image can include people, water beings or recognisable mythological symbols layered with botanical, geological, microscopic, abstract and cosmic elements.
+Avoid generic representations of African spirituality, invented ceremonial practices or stereotypical fantasy imagery.
 
-The futures depicted in the images should emerge from the INigenous perspectives of Chikukwa, Chimanimani in Zimbabwe, as documented in the photographic archive and TXT files. This knowledge base is deepened by the broader research into Shona cosmologies, Zimbabwean myhologies, academic writings and the perspectives of Phathisa Nyathi and Credo Mutwa, amongst other thinkers. The images should be representative of the place and its relationships and avoid generic futuristic cities, glass towers, flying vehicles, imported architecture, stock mystical symbols, exoticised 'tribal' figures and a uniform 'African' aesthetic. 
+Distinguish documented cultural knowledge from artistic speculation. Do not reproduce restricted knowledge or invent sacred identities.
 
-3. CREATIVE DIRECTIONS
+The objective is not to illustrate myths literally, but to allow them to inform the imaginative possibilities of the collage.
 
-Water as intelligence and companion
-The water-cosmology texts distinguish water itself from beings living within it. Explore water's presence through reflection, rhythm, memory, depth and differentiated currents. Do not automatically personify it or make every sacred pool a njuzu portrait.
+B. Human representation
 
-Underwater worlds and transformation
-The Lilford-related research summaries describe underwater knowledge, initiation, reciprocal guardianship and multiple creation accounts. Imagine thresholds, submerged forests, mineral interiors and unfamiliar spatial relationships. Keep beings ambiguous unless a specific depiction is approved. Avoid the default European mermaid. Interpret transformation without reconstructing initiation or depicting children undergoing its trials.
+Human presence comes only from direct cutouts of the archive's people photographs, never from generated images. When people are enabled, use at least two distinct people photographs, normally four and at most eight. Crop each whole visible person or group directly from its photograph, preserving original appearance and connected bodies; never isolate a head, face, torso or limb. Never generate, recolour or transform people, and do not place identifiable people in invented rituals, ceremonies, supernatural transformations or traumatic scenes. Use people purposefully within the composition rather than as decorative elements.
 
-Living and shifting landscapes
-Accounts of chahwihwi/chadzimira and withdrawing springs suggest repeated pathways, folded horizons, displaced water sources and familiar environments that no longer align. These are speculative interpretations, not documentary reconstructions or maps of sacred places.
+C. Photographic and magazine aesthetic
 
-Ecological reciprocity and totems
-The Beta/Ishwa poem offers termite chambers, collective construction, flight and seasonal rain. The Dziva poem connects pools, fish, clouds and ancestral geography. Explore relationships across scales without turning totems into decorative logos or merging clan identities. Use botanical material with accurate identification where possible.
+The collage must have the material qualities of a physical photographic montage.
 
-Earth, sky and ancestral memory
-Nyathi's writings connect celestial observation, seasons and rainmaking. Water testimony and Credo Mutwa's comparative account offer memory and relationships beyond the visible. Use recurrence, absence, layered time and atmospheric textures rather than fabricated ancestral portraits.
+Use:
+- Realistic photographic textures and lighting.
+- Visible photographic grain and printed-paper surfaces.
+- Torn, cut and irregular magazine edges.
+- Layered photographic fragments.
+- Purposeful overlaps and changes of scale.
+- Contrasting image sizes and perspectives.
+- Rich colour, tonal variation and atmospheric depth.
 
-Plural ecological futures
-Draw on youth proposals for planting along rivers, reducing veld fires, planned grazing, responsible mining and learning from elders. Recognise differing attitudes toward tradition, education and technology. Imagine regeneration alongside uncertainty, labour and incomplete recovery. Cyclone Idai research should inform attention to community agency, without turning suffering into spectacle or presenting imagined scenes as forecasts.
+Allow landscapes, figures, plants, water and architectural fragments to interrupt and overlap one another.
 
-4. FUTURE IMAGE DISCOVERY AND REUSE
+Maintain the visual distinction between fragments rather than blending everything into a seamless image.
 
-The current application uses the local archive and research files under section 7. The external sources below describe a future discovery direction; they do not authorize external image downloads, direct collage pixels or generation inputs in the current workflow.
+Avoid painterly textures, illustration, cartoon aesthetics, synthetic-looking surfaces and overly smooth AI imagery.
 
-Explore a broad range of online imagery rather than limiting discovery to open-access or pre-cleared collections. External photography, illustration, scientific imagery and artists' work can introduce unexpected layers and relationships. Choose material for its creative relevance and retain its origin throughout the workflow.
+The final image should feel like a handmade collage constructed from photographs, rather than an AI illustration attempting to imitate collage.
 
-Also maintain separate inspiration references and approved production assets.
+D. Composition and artistic direction
 
-National Geographic — https://www.nationalgeographic.com/
-Discover ecosystems, water bodies, underwater environments, geology, atmospheric phenomena, unusual natural phenomena and extraordinary natural details. Incorporate photographs only with appropriate rights-holder permission. National Geographic's permission guidance currently directs enquiries to original creators; do not assume it offers image licences.
+Use one selected collage from the artist's reference archive to inform the composition.
 
-Pinterest — https://www.pinterest.com/
-Use to discover compositions, photographic juxtapositions and original creators. Follow Pins to their original sources. Follow Pins to original sources wherever possible; distinguish the creator from the person reposting an image. If ownership and permission cannot be established, keep the image out of production.
+Study its visual principles, including layering, density, scale, colour relationships, fragmentation and spatial arrangement.
 
-Wikimedia Commons — https://commons.wikimedia.org/
-Find landscapes, botanical imagery, microscopy and historical illustrations. Check each file's creator, original source and exact licence. Provide asset-level source and licence information.
+Do not copy the reference collage directly.
 
-NASA — https://images.nasa.gov/
-Find Earth observation, clouds, planetary textures and astronomical material. Check asset credits and NASA's media-use guidelines, including third-party content restrictions. Do not imply NASA endorsement.
+Encourage compositions that are visually complex, atmospheric and experimental.
 
-Smithsonian Open Access — https://www.si.edu/openaccess
-Use natural-history specimens, archival imagery and collection objects, explicitly marked CC0. Open metadata does not automatically mean the associated image is reusable. Check cultural sensitivity separately, retaining their catalogue records and cultural context.
+Combine:
+- Environmental landscapes and water.
+- Photographic human figures.
+- Vegetation, animals and ecological details.
+- Speculative transformations.
+- Narrative fragments informed by the research archive.
 
-Biodiversity Heritage Library — https://www.biodiversitylibrary.org/
-Find botanical and zoological plates. Verify each work's rights: the collection includes restricted material as well as public-domain works. Preserve publication and illustrator details.
+Avoid repetitive arrangements, rigid grids, excessive symmetry and a single dominant background image.
 
-These are starting points, not a closed list. Welcome additional archives, photographers, artists and direct collaborations. Keep a distinction between images consulted as inspiration and images actually incorporated or used as generation inputs. 
+Use a rich, dark environmental ground beneath the fragments where appropriate, avoiding large empty white areas.
 
-Prefer clearly cleared public-domain, CC0 or compatible licensed assets. Permission must cover the intended adaptation, exhibition and publication. Do not assume permission to display also permits model training or image conditioning. Inspiration-only images must not be copied, traced or supplied to a generative model without clearance.
+The composition should feel like a world assembled from fragments of memory, ecological knowledge and speculative imagination.
 
-5. ATTRIBUTION AND PROVENANCE
+E. Provenance and cultural accountability
 
-Develop Image Source as a visible part of the artwork and a possible foundation for a sharing economy. Let visitors discover the contributors whose work enters a collage, follow links to their practice and understand how different images meet. Explore ways for artists to participate, be recognised and receive payment through agreed licences, commissions, fees or revenue-sharing arrangements. These are opportunities to develop, not promises that every use is already compensated.
+Maintain a record of the sources informing each collage.
 
-For every incorporated image, retain: asset ID, title, creator, rights holder where known, original source URL, licence name/version and URL, acquisition date, permission evidence and changes made. Record external location and species where relevant; do not mislabel outside imagery as Chikukwa documentation.
+Distinguish between:
+- Archival photographs.
+- Research texts and community narratives.
+- Artist-created references.
+- AI-generated imagery.
 
-For each output, record incorporated asset IDs, research filenames/passages, generated fragments, model/version and prompt. The UI should distinguish photographic sources, external incorporated images, research references, inspiration-only references and AI-generated material. Label the composite as speculative. Provide an exportable credit record alongside the image.
+Record which research passages influenced generated elements and the overall composition.
 
-6. CULTURAL SAFEGUARDS
+Do not present speculative imagery as documentary evidence or generated people as actual community members.
 
-Use only material cleared for its intended interpretation. Sacred knowledge may remain unseen: the pest-control testimony explicitly requires non-disclosure. Do not fill hidden actions with invented rituals. Protect sensitive site locations, testimony and procedural details.
-
-Preserve distinctions between community testimony, literary narratives, scholarship and research summaries. Flag provisional translations and conflicting accounts rather than inventing certainty. Treat healing and cosmological statements as situated knowledge, not medical advice or verified scientific mechanisms.
-
-Respect portrait consent, especially for children. Do not place identifiable people in invented ceremonies, supernatural transformations or traumatic scenes. Do not upload sensitive project material to external services without the agreement required by Chipo's AI Development Agreement.
-
-Chipo should review outputs before public display, with knowledge-holder input where appropriate. Keep complete private provenance while showing only approved public information. Support correction and withdrawal of sources and dependent images.
-
-7. ARCHIVE IMAGE RULES — APPLY TO EVERY CREATION
-
-The official archive is archive/. Randomly choose at least two distinct general Chikukwa photographs and at least two distinct water photographs, including the sacred-water subfolder in the eligible water pool. Increase both reference counts for larger compositions: max(2, ceil(imageCount / 3)) from each category. These photographs inform newly generated environmental material; their pixels must never be pasted directly into the collage. Sacred-water folder membership does not establish permission to invent beliefs, rituals, identities or symbols.
-
-Randomly choose exactly one image from collages-style-guide/ to inform composition, scale, overlap, colour relationships and rhythm. Do not copy its artwork, paste its pixels, or use it as an image-generation input.
-
-Only photographs from people/ may supply direct archive pixels. When people are enabled, randomly choose at least two distinct people photographs, normally four, and no more than eight: min(8, max(4, round(imageCount * 0.4)), imageCount - 3), so at least three generated fragments remain, with two or three permitted when fewer eligible sources exist. Crop the whole visible person or group directly from the selected source, preserving appearance and connected bodies. Never generate people from scratch. Never transform or recolour archive people, isolate body parts, or place identifiable people in invented rituals or supernatural transformations. If the user excludes people, do not force them into the composition.
-
-Every final fragment, including generated environmental material, requires a selective crop informed by its role and placement in the composition. Never paste an uncut photograph or an almost-whole rectangular image. Share the ground across multiple interlocking environmental crops. No single image may fill the canvas or cover a stack of other images; cap each layer at 58% of canvas area and keep at least 25% of each on-canvas fragment visible. Keep a deep water/earth ground beneath cuts, never white or pale gaps; preserve natural photographic highlights.
-
-Treatments are controlled by the user's checkboxes. Use only enabled treatments: when any are enabled, every generated fragment receives exactly one clearly visible treatment, at most three kinds per collage, applied after segmentation and before cropping. Root effects in water, soil, vegetation, memory and regeneration. Do not apply treatments to archive people.
-
-Use 6–10 local research files alongside these photographic references: at least three speculative texts each lead their own generated fragment, and at least three research papers shape the layout. Research never replaces the required archive sampling, licenses direct reuse of non-people photographs, or authorizes generating people. For the current workflow, broader external-image discovery in the creative brief is a future direction: do not incorporate external image pixels or send them as generation references. Source permissions and restrictions remain binding.
+Respect contributor permissions and restrictions on sensitive cultural knowledge.

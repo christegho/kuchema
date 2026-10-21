@@ -1,13 +1,17 @@
 import {randomInt} from 'node:crypto';
-import {MIN_TEXTS} from './research.js';
 
 export function archiveCategory(relativePath) {
   const parts=relativePath.replaceAll('\\','/').toLowerCase().split('/');
   if(parts[0]==='people')return 'people';
   if(parts[0]==='collages-style-guide')return 'composition';
   if(parts[0]==='chikukwa water sites')return 'water';
+  // The curated open-access folder is kept apart until its licences are recorded.
+  if(/^open[-_ ]?access/.test(parts[0]))return 'open-access';
   return 'general';
 }
+
+// Only general and water photographs may condition image generation (assets outside the official archive keep their own permission).
+export const referenceEligible=asset=>!asset.archive||['general','water'].includes(asset.archive.category);
 
 export function shuffled(items,random=randomInt) {
   const result=[...items];
@@ -16,9 +20,10 @@ export function shuffled(items,random=randomInt) {
 }
 
 // Counts refer to distinct photographs, not the number of figures within a photo.
-// People leave room for every speculative text to lead its own generated image.
+// 3–6 Chikukwa/water generation references; people leave at least three generated images.
 export function archiveCounts(count) {
-  return {general:Math.max(2,Math.ceil(count/3)),water:Math.max(2,Math.ceil(count/3)),composition:1,people:Math.min(8,Math.max(4,Math.round(count*.4)),count-MIN_TEXTS)};
+  const references=count>12?3:2;
+  return {general:references,water:references,composition:1,people:Math.min(8,Math.max(4,Math.round(count*.4)),count-3)};
 }
 
 export function selectOfficialArchive(assets,job,random=randomInt) {

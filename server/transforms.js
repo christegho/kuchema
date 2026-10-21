@@ -147,13 +147,14 @@ export async function transformImage(store,asset,transform) {
  * image is treated so effects keep their scale, then the cut's own crop box and
  * alpha are applied unchanged. Returns PNG bytes and the recorded transform.
  */
-export async function treatedCut(store,asset,cut,transform){
+export async function treatedCut(store,asset,cut,transform,prepared=null){
   if(!transform||transform.type==='none')return {bytes:await fs.readFile(cut.file),transform:null};
-  const {image,strength}=await treatedImage(store,asset,transform);
+  // Several cuts from one image share a single treated copy of it.
+  const {image,strength}=prepared||await treatedImage(store,asset,transform);
   const [left,top,right,bottom]=cut.cropBox||[],alpha=await sharp(cut.file).ensureAlpha().extractChannel(3).raw().toBuffer({resolveWithObject:true});
   if(alpha.info.width!==right-left||alpha.info.height!==bottom-top)throw new Error('The cut does not match its recorded crop box.');
   // Chained after any resize, extract crops the treated full-size image.
-  const treated=await image.extract({left,top,width:right-left,height:bottom-top}).removeAlpha().raw().toBuffer({resolveWithObject:true});
+  const treated=await image.clone().extract({left,top,width:right-left,height:bottom-top}).removeAlpha().raw().toBuffer({resolveWithObject:true});
   const bytes=await sharp(treated.data,{raw:treated.info}).joinChannel(alpha.data,{raw:{width:alpha.info.width,height:alpha.info.height,channels:1}}).png().toBuffer();
   return {bytes,transform:provenance(transform,strength)};
 }

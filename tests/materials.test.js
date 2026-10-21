@@ -8,6 +8,8 @@ import {createStore} from '../server/store.js';
 import {inspectCut} from '../server/crops.js';
 import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS,transformImage,treatedImage,treatedCut,restrainTreatments} from '../server/transforms.js';
 import {creationInput,advanceFor} from '../server/plan.js';
+import {assignTargets} from '../server/direction.js';
+import {detailAssignments} from '../server/fragments.js';
 import {coverageReader,fillComposition,COMPOSITION_LIMITS} from '../server/coverage.js';
 
 async function fixture(t){
@@ -106,4 +108,36 @@ test('a fully covered stack is detected and repaired instead of accepting a domi
  assert.ok(after.dominantShare<=.581);assert.equal(after.distinctVisible,4);
  assert.ok(after.obscuredIds.length<before.obscuredIds.length);
  assert.ok(project.layers.every(l=>l.width*l.height<=1600000*COMPOSITION_LIMITS.maxLayerArea+.01));
+});
+
+test('grounding regions map to fragment keys: exact keys first, then the remaining targets in order',()=>{
+ const targets=[{id:'a',key:'F04'},{id:'a',key:'D01'},{id:'a',key:'D04'},{id:'b',key:'F05'}];
+ const [a,b]=assignTargets([{id:'a',regions:[{key:'x'},{key:'D04'},{key:'y'},{key:'z'}]},{id:'b',regions:[{key:'F05'}]}],targets);
+ assert.deepEqual(a.regions.map(r=>r.targetKey),['F04','D04','D01']);assert.deepEqual(b.regions.map(r=>r.targetKey),['F05']);
+});
+
+test('coverage is kept per fragment while every source image counts once',async t=>{
+ const store=await fixture(t),bytes=await sharp({create:{width:200,height:120,channels:4,background:{r:90,g:120,b:80,alpha:1}}}).png().toBuffer();
+ const big=await store.addImage(bytes,'big.png',{kind:'generated',allowCrop:true}),small=await store.addImage(await sharp(bytes).resize(60,36).png().toBuffer(),'small.png',{kind:'generated',allowCrop:true,derived:{parentId:'root'}});
+ const materials=[{key:'F04',rootId:'root',asset:big},{key:'D01',rootId:'root',asset:small}];
+ const layer=(assetId,x,width,height)=>({id:assetId,assetId,x,y:100,width,height,rotation:0,opacity:1,visible:true});
+ const measure=await coverageReader(store,materials),m=measure({layers:[layer(big.id,100,800,480),layer(small.id,1200,90,54)]});
+ assert.equal(m.keyedBy,'fragment');assert.deepEqual(Object.keys(m.visible).sort(),['D01','F04']);assert.equal(m.distinctVisible,1);
+ // A small, fully visible detail is not reported as obscured just for being small.
+ assert.ok(m.visible.D01<COMPOSITION_LIMITS.minVisible);assert.equal(m.obscuredIds.includes('D01'),false);
+ assert.ok(measure({layers:[layer(small.id,150,90,54),layer(big.id,100,800,480)]}).obscuredIds.includes('D01'));
+});
+
+test('plan schema: detail slots tie to generated images, tiers are required, torn edges follow the option',()=>{
+ const base={prompt:'Water and collective memory',requestId:'af4bbf1a-a20a-4622-8b71-290d6b4b3997'};
+ const archive=[{id:'p1'},{id:'p2'},{id:'p3'}],withEdges={...creationInput.parse(base),detailAssignments:detailAssignments(6,3)};
+ const schema=advanceFor(archive,withEdges,3).shape;
+ assert.deepEqual(Object.values(withEdges.detailAssignments),['F04','F05','F06','F04','F05','F06']);
+ assert.deepEqual(Object.keys(schema.details.shape),['D01','D02','D03','D04','D05','D06']);
+ assert.equal(schema.details.shape.D01.shape.sourceKey.value,'F04');
+ assert.deepEqual(schema.images.shape.F04.shape.edge.options,['clean','torn']);assert.equal(schema.images.shape.F01.shape.edge.value,'clean');
+ assert.deepEqual(schema.images.shape.F01.shape.tier.options,['dominant','medium','small']);
+ const plain=advanceFor(archive,{...creationInput.parse({...base,tornEdges:false}),detailAssignments:detailAssignments(6,3)},3).shape;
+ assert.equal(plain.images.shape.F04.shape.edge.value,'clean');assert.equal(plain.details.shape.D01.shape.edge.value,'clean');
+ assert.equal(advanceFor(archive,creationInput.parse(base),3).shape.details.shape,undefined); // no detail slots without assignments
 });

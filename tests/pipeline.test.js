@@ -22,8 +22,9 @@ const fakeVision={available:async()=>true,request:async r=>{
  if(r.action==='detect')return {detections:[],width:120,height:80};
  const cuts=[];
  for(const q of r.regions){
-  const {width,height}=await sharp(r.path).metadata(),file=path.join(r.outputDir,`cut-${q.key}.png`);
-  const mask=Buffer.from(`<svg width="${width}" height="${height}"><ellipse cx="${width/2}" cy="${height/2}" rx="${width*.46}" ry="${height*.46}" fill="white"/></svg>`);
+  // Each region's mask follows its box, so several cuts from one image are distinct.
+  const {width,height}=await sharp(r.path).metadata(),file=path.join(r.outputDir,`cut-${q.key}.png`),[l,t,rt,b]=q.box;
+  const mask=Buffer.from(`<svg width="${width}" height="${height}"><ellipse cx="${(l+rt)/2*width}" cy="${(t+b)/2*height}" rx="${(rt-l)/2*width*.92}" ry="${(b-t)/2*height*.92}" fill="white"/></svg>`);
   await sharp(r.path).ensureAlpha().composite([{input:mask,blend:'dest-in'}]).png().toFile(file);
   cuts.push({...q,file,cropBox:[0,0,width,height],coverage:.66,detector:'VLM-directed',segmenter:'SAM test double'});
  }
@@ -35,10 +36,10 @@ async function fixture(t,n=5){
  const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-only';t.after(()=>{if(old)process.env.OPENROUTER_API_KEY=old;else delete process.env.OPENROUTER_API_KEY;});return store;
 }
 function direction(archive,job,generatedCount,referenceArchive=archive){
- return {...(job.localResearch?{researchComposition:{sourceIds:job.localResearch.map(d=>d.id),direction:'Layer the water pathways across the soil contours, using recurrence and offset scales from the supplied research.',papers:Object.fromEntries(job.localResearch.filter(d=>d.relativePath.split('/').includes('papers')).map(d=>[d.id,'Broad environmental fields sit low while smaller cuts recur upward, as the paper describes water moving between levels.']))}}:{}),title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
+ return {...(job.localResearch?{researchComposition:{sourceIds:job.localResearch.map(d=>d.id),direction:'Layer the water pathways across the soil contours, using recurrence and offset scales from the supplied research.',relationships:Object.fromEntries(job.localResearch.map(d=>[d.id,'Broad environmental fields sit low while smaller cuts recur upward, as the passage describes water moving between levels.']))}}:{}),title:'Material relations',logic:'Water interrupts ground',rationale:'Broad overlapping fields support smaller cuts',palette:'Earth',light:'Diffuse',horizon:'Refused',background:'#eeeeee',supported:['Archive surfaces'],uncertain:['Unknown locality'],rules:['Every source remains visible'],images:Array.from({length:job.count},(_,i)=>{
   const generated=i>=job.count-generatedCount,generationIndex=i-(job.count-generatedCount),role=!generated?(job.humanContextIds?.includes(archive[i].id)?'people':'environment'):generationIndex<2?'environment':'material';
-  return {...(job.localResearch?{researchIds:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]||[],researchIntent:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]?'The documented relationships between water and land become an interlocking mineral surface.':''}:{}),key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
- })};
+  return {tier:role==='environment'&&generated?'dominant':role==='people'?'medium':'small',edge:'clean',...(job.localResearch?{researchIds:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]||[],researchIntent:job.researchAssignments?.[`F${String(i+1).padStart(2,'0')}`]?'The documented relationships between water and land become an interlocking mineral surface.':''}:{}),key:`F${String(i+1).padStart(2,'0')}`,sourceId:generated?null:archive[i].id,label:`Material ${i}`,prompt:generated?`A photograph of a distinct broad stone surface numbered ${i} with a crisp material edge`:'',segment:role==='people'?'The complete archive group of people':'The stone and water surface',reason:'A material relation',referenceIds:generated&&job.useReferences?(job.referenceAssignments?.[`F${String(i+1).padStart(2,'0')}`]||referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)).slice(0,1).map(a=>a.id)):[],role,boundary:role==='people'?'silhouette':role==='environment'&&generated?'field':i<2?'field':'silhouette',transform:{type:generated&&generationIndex<treatmentBudget(generatedCount).maxImages?(permittedTransforms(job)[0]||'none'):'none',strength:.5,reason:'Generated material follows the direction of water'},placement:role==='environment'&&generated?{x:generationIndex===0?.28:.74,y:.5,width:.74,rotation:0}:job.count>10&&i>=2?{x:.08+((i-2)%6)*.17,y:.16+Math.floor((i-2)/6)*.33,width:.12,rotation:0}:{x:i<2?(i===0?.15:.85):(.25+(i%2)*.45),y:i<2?.5:(i<4?.3:.7),width:i<2?.85:.23,rotation:0}};
+ }),details:Object.entries(job.detailAssignments||{}).map(([key,sourceKey],i)=>({key,sourceKey,label:`Detail ${key}`,segment:'A closer texture of the stone surface',boundary:'silhouette',tier:'small',edge:'clean',placement:{x:.1+(i%6)*.16,y:.85,width:.12,rotation:0},reason:'A smaller echo of the material'}))};
 }
 function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mutateObservations=o=>o}={}){
  let plan,images=0;return async(endpoint,body)=>{
@@ -50,13 +51,15 @@ function requestDouble(store,{onBody=()=>{},noCitations=false,mutatePlan=p=>p,mu
    const data=JSON.parse(body.messages[1].content[0].text);
    assert.equal(Object.keys(data.sourceSlots).length,data.count-data.generatedCount);
    Object.entries(data.sourceSlots).forEach(([key,a],i)=>{assert.equal(key,`F${String(i+1).padStart(2,'0')}`);assert.ok(data.archive.some(item=>item.id===a.id));});
-   plan=mutatePlan(direction(Object.values(data.sourceSlots),data,data.generatedCount,data.archive));plan.layerOrder=[...plan.images].sort((a,b)=>Number(!b.sourceId&&b.role==='environment')-Number(!a.sourceId&&a.role==='environment')).map(i=>i.key);return json({...plan,images:Object.fromEntries(plan.images.map(i=>[i.key,i]))});
+   plan=mutatePlan(direction(Object.values(data.sourceSlots),data,data.generatedCount,data.archive));plan.layerOrder=[...[...plan.images].sort((a,b)=>Number(!b.sourceId&&b.role==='environment')-Number(!a.sourceId&&a.role==='environment')).map(i=>i.key),...plan.details.map(d=>d.key)];return json({...plan,images:Object.fromEntries(plan.images.map(i=>[i.key,i])),details:Object.fromEntries(plan.details.map(d=>[d.key,d]))});
   }
   if(stage==='transformed_image_grounding'){
    const targets=JSON.parse(body.messages[1].content[0].text).targets;
-   return json(mutateObservations({images:targets.map(t=>({id:t.id,description:'A material surface',coordinateSpace:'normalized_1000',regions:[region]}))}));
+   // One region per fragment target; cuts from the same image take different boxes.
+   const boxes=[[100,100,900,900],[150,450,650,950],[500,80,950,520]],ids=[...new Set(targets.map(t=>t.id))];
+   return json(mutateObservations({images:ids.map(id=>({id,description:'A material surface',coordinateSpace:'normalized_1000',regions:targets.filter(t=>t.id===id).map((t,j)=>({...region,key:t.key,box:boxes[j],point:[(boxes[j][0]+boxes[j][2])/2,(boxes[j][1]+boxes[j][3])/2]}))}))}));
   }
-  if(stage==='collage_critique')return json({assessment:'Dense, visible sources',issues:[],revise:false,layout:{background:plan.background,rationale:plan.rationale,negativeSpace:'Small seams',layers:plan.images.map(i=>({assetId:i.key,name:i.label,...i.placement,opacity:1,reason:i.reason}))}});
+  if(stage==='collage_critique')return json({assessment:'Dense, visible sources',issues:[],revise:false,layout:{background:plan.background,rationale:plan.rationale,negativeSpace:'Small seams',layers:[...plan.images,...plan.details].map(i=>({assetId:i.key,name:i.label,...i.placement,opacity:1,reason:i.reason}))}});
   return json({summary:'Water follows terrain',findings:[{claim:'Flow',url:'https://example.org/water'}],uncertain:[],mustNotInfer:[]},noCitations?[]:[{type:'url_citation',url_citation:{url:'https://example.org/water'}}]);
  };
 }
@@ -130,10 +133,14 @@ test('a failed SAM cut still publishes a partial study and can retry only that l
  const store=await fixture(t,6);let failOne=true,failedPath='';
  const vision={...fakeVision,request:async r=>{if(r.action==='segment'&&failOne){failOne=false;failedPath=r.path;return {cuts:[],detections:[]};}return fakeVision.request(r);}};
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.ok(job.outputUrl);assert.equal(job.failedParts.length,1);assert.equal(job.project.layers.length,5);assert.match(job.warnings.join(' '),/absent from this partial study/);
- const part=job.failedParts[0];assert.equal(job.workingImages.find(w=>w.key===part.key).assetId,path.basename(failedPath,'.png'));
- const retried=await pipeline.retryPart(job.id,part.key);
- assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);assert.ok(retried.outputUrl);
+ assert.equal(job.status,'complete',job.error);assert.ok(job.outputUrl);assert.equal(job.project.layers.length,10);assert.match(job.warnings.join(' '),/absent from this partial study/);
+ // A failed image loses its primary cut and its detail cut; each is saved for its own retry.
+ assert.deepEqual(job.failedParts.map(p=>[p.key,p.sourceKey]),[['F01','F01'],['D01','F01']]);
+ assert.ok(job.failedParts.every(p=>p.assetId===path.basename(failedPath,'.png')));
+ const part=job.failedParts[0];let retried=await pipeline.retryPart(job.id,part.key);
+ assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,11);assert.ok(retried.outputUrl);
+ retried=await pipeline.retryPart(job.id,'D01');assert.equal(retried.failedParts[1].status,'resolved');assert.equal(retried.project.layers.length,12);
+ assert.equal(retried.materials.find(m=>m.key==='D01').sourceKey,'F01');
  // The retried cut receives the planned treatment with the plan's palette.
  const planned=job.plan.images.find(i=>i.key===part.key).transform,fragment=()=>store.state.assets.find(a=>a.id===retried.materials.find(m=>m.key===part.key).assetId);
  assert.notEqual(planned.type,'none');assert.equal(fragment().derived.transform.type,planned.type);assert.equal(fragment().derived.transform.palette,job.plan.palette);
@@ -167,15 +174,15 @@ test('a local segmentation timeout retries once, then saves only that part for a
   return fakeVision.request(r);
  }};
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(fallbackCalls,1);assert.equal(job.failedParts.length,1);assert.equal(job.project.layers.length,5);assert.match(job.failedParts[0].error,/timed out/);
- allowRetry=true;const retried=await pipeline.retryPart(job.id,job.failedParts[0].key);
- assert.equal(retried.failedParts[0].status,'resolved');assert.equal(retried.project.layers.length,6);
+ assert.equal(job.status,'complete',job.error);assert.equal(fallbackCalls,1);assert.equal(job.failedParts.length,2);assert.equal(job.project.layers.length,10);assert.match(job.failedParts[0].error,/timed out/);
+ allowRetry=true;for(const part of job.failedParts)await pipeline.retryPart(job.id,part.key);
+ assert.ok(job.failedParts.every(p=>p.status==='resolved'));assert.equal(job.project.layers.length,12);
 });
 test('a study with no successful local cuts remains resumable without paid calls',async t=>{
  const store=await fixture(t,6);let allowRetry=false;
  const vision={...fakeVision,request:async r=>r.action==='segment'&&!allowRetry?Promise.reject(new Error('Local segmentation timed out.')):fakeVision.request(r)};
  const pipeline=new CreationPipeline(store,{prices,vision,request:requestDouble(store)}),job=await pipeline.start(input({count:6}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,6);assert.match(job.stage,/Waiting for local retries/);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,12);assert.match(job.stage,/Waiting for local retries/);
  const paidCalls=job.ledger.length;allowRetry=true;const retried=await pipeline.retryPart(job.id,job.failedParts[0].key);
  assert.ok(retried.project);assert.equal(retried.project.layers.length,1);assert.equal(retried.ledger.length,paidCalls);assert.equal(retried.failedParts[0].status,'resolved');
 });
@@ -270,8 +277,8 @@ for(const count of [6,20])test(`official archive: ${count} components use random
  const job=await pipeline.start(input({count}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);
  assert.equal(job.archiveSelection.people.length,count===6?3:8);
- assert.equal(job.archiveSelection.general.length,count===6?2:7);
- assert.equal(job.archiveSelection.water.length,count===6?2:7);
+ assert.equal(job.archiveSelection.general.length,count===6?2:3);
+ assert.equal(job.archiveSelection.water.length,count===6?2:3);
  assert.equal(job.archiveSelection.composition.length,1);
  assert.equal(new Set(job.materials.map(m=>m.rootId)).size,count);
  assert.deepEqual(job.plan.images.filter(i=>i.sourceId).map(i=>i.sourceId),job.archiveSelection.people);
@@ -313,19 +320,20 @@ test('planner cannot substitute generated people or change official reference pa
 for(const enabledTransforms of [[],['reflection-echo']])test(`official pipeline honors the exact enabled treatment list: ${enabledTransforms.join(',')||'all off'}`,async t=>{
  const store=await officialFixture(t),rawCuts=new Map();
  // Keep each untreated SAM cut before the pipeline removes its work folder.
- const vision={...fakeVision,request:async r=>{const result=await fakeVision.request(r);if(r.action==='segment')for(const cut of result.cuts)rawCuts.set(r.path,await fs.readFile(cut.file));return result;}};
+ const vision={...fakeVision,request:async r=>{const result=await fakeVision.request(r);if(r.action==='segment')for(const cut of result.cuts)rawCuts.set(`${r.path}:${cut.key}`,await fs.readFile(cut.file));return result;}};
  const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store)});
- const job=await pipeline.start(input({enabledTransforms}));await pipeline.running;
+ const job=await pipeline.start(input({enabledTransforms,tornEdges:false}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);
  assert.ok(job.plan.images.every(i=>i.transform.type==='none'||enabledTransforms.includes(i.transform.type)));
  assert.ok(job.workingImages.every(i=>i.treatAfterCut&&(i.transform.type==='none'||enabledTransforms.includes(i.transform.type))));
  // Every generated part carries one visible treatment when any is enabled; people never do.
  assert.ok(job.plan.images.every(i=>i.sourceId?i.transform.type==='none':i.transform.type===(enabledTransforms[0]||'none')));
  assert.equal(job.plan.images.filter(i=>!i.sourceId&&i.role==='environment').length,2);
- // Segment → treat → crop: SAM sees untreated images; each fragment keeps the SAM alpha exactly.
+ // Segment → treat → crop: SAM sees untreated images; each fragment, detail cuts included, keeps the SAM alpha exactly.
+ assert.equal(job.materials.length,12);assert.ok(job.materials.some(m=>m.key.startsWith('D')));
  for(const m of job.materials){
-  const working=job.workingImages.find(w=>w.key===m.key),source=store.state.assets.find(a=>a.id===working.assetId),fragment=store.state.assets.find(a=>a.id===m.assetId);
-  assert.equal(source.derived,undefined);const raw=rawCuts.get(path.join(store.root,'media',`${source.id}.png`));assert.ok(raw);
+  const working=job.workingImages.find(w=>w.key===m.sourceKey),source=store.state.assets.find(a=>a.id===working.assetId),fragment=store.state.assets.find(a=>a.id===m.assetId);
+  assert.equal(source.derived,undefined);const raw=rawCuts.get(`${path.join(store.root,'media',`${source.id}.png`)}:${m.key}`);assert.ok(raw);
   const [before,after]=await Promise.all([raw,path.join(store.root,'media',`${fragment.id}.png`)].map(f=>sharp(f).ensureAlpha().raw().toBuffer()));
   let alphaSame=true,rgbChanged=0;for(let i=0;i<before.length;i+=4){if(before[i+3]!==after[i+3])alphaSame=false;if(before[i+3]&&Math.abs(before[i]-after[i])+Math.abs(before[i+1]-after[i+1])+Math.abs(before[i+2]-after[i+2])>6)rgbChanged++;}
   assert.ok(alphaSame,m.key);
@@ -338,24 +346,24 @@ test('a segmenter returning whole photographs cannot paste them into an automati
  const vision={...fakeVision,request:async r=>r.action==='segment'?{cuts:r.regions.map(q=>({...q,file:r.path,coverage:.4,segmenter:'misleading metadata'})),detections:[]}:fakeVision.request(r)};
  const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store)});
  const job=await pipeline.start(input({}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,6);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project,undefined);assert.equal(job.failedParts.length,12);
  assert.ok(job.failedParts.every(p=>/almost whole rectangular/.test(p.error)));
 });
 
-for(const researchCount of [6,10])test(`research ${researchCount}: each speculative text leads an image call, papers shape the layout, and provenance is saved`,async t=>{
+for(const researchCount of [3,6])test(`research ${researchCount}: each passage leads an image call, every passage sets a relationship, and provenance is saved`,async t=>{
  const store=await fixture(t),calls=[];
  const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
  const job=await pipeline.start(input({includeArchive:false,includePeople:false,researchCount}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);assert.equal(job.researchDocuments.length,researchCount);
  for(const {endpoint,body} of calls){
   const direction=endpoint==='images'?body.prompt:body.messages[0].content;
-  assert.match(direction,/ARCHIVE IMAGE RULES/);assert.match(direction,/Never generate people from scratch/);
+  assert.match(direction,/^BINDING TECHNICAL RULES/);assert.match(direction,/ARCHIVE IMAGE RULES/);assert.match(direction,/Never generate people from scratch/);
   assert.match(direction,/exactly one image from collages-style-guide/);assert.match(direction,/only enabled treatments/);
  }
  const ids=job.researchDocuments.map(d=>d.id);assert.deepEqual(job.plan.researchComposition.sourceIds,ids);
- const researchParts=job.plan.images.filter(i=>job.researchAssignments[i.key]),texts=job.researchDocuments.filter(d=>d.relativePath.includes('/scripts/')&&d.filename!=='water-rituals-for-combatting-pests.txt'),papers=job.researchDocuments.filter(d=>d.relativePath.includes('/papers/'));
- assert.ok(texts.length>=3&&papers.length>=3);assert.equal(researchParts.length,Math.min(texts.length,job.requestedMaterials));
- assert.ok(researchParts.every(i=>i.researchIds.length===1&&texts.some(d=>d.id===i.researchIds[0])));assert.deepEqual(Object.keys(job.plan.researchComposition.papers).sort(),papers.map(d=>d.id).sort());
+ const researchParts=job.plan.images.filter(i=>job.researchAssignments[i.key]),leads=job.researchDocuments.filter(d=>d.filename!=='water-rituals-for-combatting-pests.txt');
+ assert.ok(job.researchDocuments.every(d=>d.passages.length===1));assert.ok(researchParts.length>=2);assert.equal(researchParts.length,Math.min(leads.length,job.requestedMaterials));
+ assert.ok(researchParts.every(i=>i.researchIds.length===1&&leads.some(d=>d.id===i.researchIds[0])));assert.deepEqual(Object.keys(job.plan.researchComposition.relationships).sort(),[...ids].sort());
  for(const part of researchParts){
   const asset=store.state.assets.find(a=>!a.derived&&a.generation?.researchIntent===part.researchIntent&&JSON.stringify(a.generation.researchIds)===JSON.stringify(part.researchIds));
   assert.ok(asset);assert.equal(asset.generation.localResearch.length,part.researchIds.length);
@@ -396,7 +404,7 @@ test('research upstream rate limit switches providers and the same study continu
  assert.ok(job.project.layers.length);assert.ok(job.warnings.some(w=>w.includes('continued with nebius/fp8')));
 });
 
-test('ten-image collage plans with all thirteen archive references while bypassing Venice',async t=>{
+test('a thirteen-image collage plans with all twelve archive references while bypassing Venice',async t=>{
  const store=await officialFixture(t),calls=[];let checkedCounts;
  const imageAwarePrices=async options=>{
   checkedCounts=options.imageCounts;
@@ -405,13 +413,13 @@ test('ten-image collage plans with all thirteen archive references while bypassi
   p.total+=.08;return p;
  };
  const pipeline=new CreationPipeline(store,{prices:imageAwarePrices,vision:fakeVision,request:requestDouble(store,{onBody:(endpoint,body)=>calls.push({endpoint,body})})});
- const job=await pipeline.start(input({count:undefined}));await pipeline.running;
- assert.equal(job.count,10);
+ // 3 general + 3 water references, 1 style-guide collage and 5 people photos exceed Venice's 10-image limit.
+ const job=await pipeline.start(input({count:13}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);
- assert.deepEqual(checkedCounts,{research:0,planner:13,vision:10});
+ assert.deepEqual(checkedCounts,{research:0,planner:12,vision:13});
  const planning=calls.find(c=>c.body.response_format?.json_schema?.name==='advance_collage_plan').body;
- assert.deepEqual(planning.provider.only,['deepinfra/fp8']);assert.equal(planning.messages[1].content.filter(p=>p.type==='image_url').length,13);
- assert.equal(calls.filter(c=>c.endpoint==='images').length,6);assert.equal(job.plan.images.length,10);
+ assert.deepEqual(planning.provider.only,['deepinfra/fp8']);assert.equal(planning.messages[1].content.filter(p=>p.type==='image_url').length,12);
+ assert.equal(calls.filter(c=>c.endpoint==='images').length,8);assert.equal(job.plan.images.length,13);
  assert.equal(job.ledger.filter(r=>r.label.startsWith('Advance collage plan')).length,1);
  assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
 });
@@ -439,8 +447,8 @@ test('unreadable Parasail response switches to DeepInfra and completes the ten-i
  assert.equal(job.status,'complete',job.error);assert.equal(job.count,10);
  assert.deepEqual(planning.map(b=>b.provider.only[0]),['parasail/fp8','deepinfra/fp8']);
  assert.deepEqual(planning[0].messages,planning[1].messages);
- assert.equal(planning[1].messages[1].content.filter(p=>p.type==='image_url').length,13);
- assert.equal(researchCalls,1);assert.equal(imageCalls,6);assert.equal(job.project.layers.length,10);
+ assert.equal(planning[1].messages[1].content.filter(p=>p.type==='image_url').length,9);
+ assert.equal(researchCalls,1);assert.equal(imageCalls,6);assert.equal(job.project.layers.length,16);
  assert.equal(job.providerAttempts.find(a=>a.provider==='parasail/fp8').code,'UNREADABLE_RESPONSE');
  assert.equal(job.ledger.find(r=>r.label.startsWith('Advance collage plan')).status,'uncertain');
  assert.ok(job.ledger.reduce((sum,r)=>sum+r.reserved,0)<=1);
@@ -456,7 +464,41 @@ test('a provider outage during the layout review keeps the rendered draft; other
   assert.equal(job.status,status,job.error);
   assert.equal(job.ledger.find(r=>r.label.startsWith('Collage critique')).status,'uncertain');
   if(status==='failed'){assert.match(job.error,/Credits exhausted/);continue;}
-  assert.equal(job.critique,undefined);assert.deepEqual(job.finalLayout,job.initialLayout);assert.ok(job.previewUrl);assert.equal(job.project.layers.length,6);
+  assert.equal(job.critique,undefined);assert.deepEqual(job.finalLayout,job.initialLayout);assert.ok(job.previewUrl);assert.equal(job.project.layers.length,12);
   assert.ok(job.warnings.some(w=>/layout review, so the draft arrangement was kept/.test(w)));
  }
+});
+
+test('torn paper edges go on generated fragments only, after treatment, and are recorded',async t=>{
+ const store=await officialFixture(t),rawCuts=new Map();
+ const vision={...fakeVision,request:async r=>{const result=await fakeVision.request(r);if(r.action==='segment')for(const cut of result.cuts)rawCuts.set(cut.key,await sharp(cut.file).metadata());return result;}};
+ // The director asks for torn edges everywhere, people included; people stay clean.
+ const mutatePlan=plan=>{for(const item of [...plan.images.filter(i=>!i.sourceId),...plan.details])item.edge='torn';return plan;};
+ const pipeline=new CreationPipeline(store,{vision,prices,request:requestDouble(store,{mutatePlan})});
+ const job=await pipeline.start(input({}));await pipeline.running;
+ assert.equal(job.status,'complete',job.error);
+ for(const m of job.materials){
+  const fragment=store.state.assets.find(a=>a.id===m.assetId),raw=rawCuts.get(m.key),people=job.plan.images.find(i=>i.key===m.sourceKey).role==='people';
+  assert.equal(m.edge,people?'clean':'torn',m.key);assert.equal(fragment.derived.edge.style,people?'clean':'torn',m.key);
+  const pad=fragment.derived.edge.pad||0;assert.equal(fragment.width,raw.width+2*pad);assert.equal(fragment.height,raw.height+2*pad);
+ }
+ const off=new CreationPipeline(store,{vision,prices,request:requestDouble(store,{mutatePlan})});
+ const plain=await off.start(input({tornEdges:false}));await off.running;
+ assert.equal(plain.status,'failed');assert.match(plain.error,/edge/);
+});
+
+test('a layout review that drops fragments keeps their draft placement instead of failing',async t=>{
+ const store=await fixture(t),base=requestDouble(store);
+ const request=async(endpoint,body)=>{
+  const result=await base(endpoint,body);
+  if(body.response_format?.json_schema?.name!=='collage_critique')return result;
+  const review=JSON.parse(result.choices[0].message.content);review.revise=true;review.layout.layers=review.layout.layers.filter(l=>!['F02','D03'].includes(l.assetId));
+  return json(review);
+ };
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request}),job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project.layers.length,job.materials.length);
+ assert.ok(job.warnings.some(w=>/review omitted 2 fragments; they keep the draft placement/.test(w)));
+ assert.deepEqual(job.finalLayout.layers.map(l=>l.assetId).sort(),job.initialLayout.layers.map(l=>l.assetId).sort());
+ // A tier mix far from 3–5 dominant, 4–7 medium and 5–9 small is reported, not fatal.
+ assert.ok(job.warnings.some(w=>/^Scale hierarchy: /.test(w)));
 });

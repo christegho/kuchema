@@ -1,27 +1,34 @@
 import {z} from 'zod';
-import {validateResearchPlan,isPaper,RESEARCH_RANGE} from './research.js';
+import {validateResearchPlan,RESEARCH_RANGE,DEFAULT_RESEARCH} from './research.js';
+import {referenceEligible} from './archive.js';
 import {TRANSFORMS,DEFAULT_TRANSFORMS,permittedTransforms,treatmentBudget} from './transforms.js';
+import {TIERS} from './fragments.js';
 export const creationInput=z.object({
  prompt:z.string().trim().min(8).max(3000),ids:z.array(z.string().max(100)).max(200).default([]),
- researchCount:z.number().int().min(RESEARCH_RANGE[0]).max(RESEARCH_RANGE[1]).default(RESEARCH_RANGE[0]),researchIds:z.array(z.string().max(100)).max(100).default([]),
+ researchCount:z.number().int().min(RESEARCH_RANGE[0]).max(RESEARCH_RANGE[1]).default(DEFAULT_RESEARCH),researchIds:z.array(z.string().max(100)).max(100).default([]),
  count:z.number().int().min(6).max(20).default(10),includeArchive:z.boolean().default(true),includePeople:z.boolean().default(true),
  useReferences:z.boolean().default(true),transformations:z.boolean().default(true),recolouring:z.boolean().default(true),
  enabledTransforms:z.array(z.enum(TRANSFORMS.filter(t=>t!=='none'))).max(TRANSFORMS.length-1).default(DEFAULT_TRANSFORMS),
  imageModel:z.enum(['economy','gpt-image']).default('economy'),
  aesthetic:z.enum(['prompt','cut-paper','continuous']).default('prompt'),generation:z.enum(['needed','always']).default('needed'),
- contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
+ tornEdges:z.boolean().default(true),contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
 });
 const placement=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().min(.1).max(1.8),rotation:z.number().min(-35).max(35)});
-// papers maps each selected research paper to its concrete consequence for the layout.
-const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200),papers:z.record(z.string().max(100),z.string().max(400)).optional()});
-export const advanceSchema=z.object({researchComposition:researchComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(20).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
+// relationships maps every selected passage to the visual relationship or layout consequence it creates
+// (studies before 19 Oct recorded `papers` instead).
+const researchComposition=z.object({sourceIds:z.array(z.string().max(100)).min(2).max(10),direction:z.string().min(30).max(1200),relationships:z.record(z.string().max(100),z.string().max(400)).optional(),papers:z.record(z.string().max(100),z.string().max(400)).optional()});
+const edge=z.enum(['clean','torn']);
+// A detail is an extra cut from a generated image at another scale; it shares that image's treatment.
+const detail=z.object({key:z.string().max(30),sourceKey:z.string().max(30),label:z.string().max(120),segment:z.string().max(300),boundary:z.enum(['silhouette','residue','field']),tier:z.enum(TIERS),edge,placement,reason:z.string().max(500)});
+export const advanceSchema=z.object({researchComposition:researchComposition.optional(),layerOrder:z.array(z.string().max(30)).min(6).max(30).optional(),details:z.array(detail).max(6).optional(),title:z.string().max(160),logic:z.string().max(500),rationale:z.string().max(1200),palette:z.string().max(300),light:z.string().max(300),horizon:z.string().max(300),background:z.string().regex(/^#[0-9a-fA-F]{6}$/),supported:z.array(z.string().max(500)).max(12),uncertain:z.array(z.string().max(500)).max(10),rules:z.array(z.string().max(500)).max(8),images:z.array(z.object({
  researchIds:z.array(z.string().max(100)).max(10).optional(),researchIntent:z.string().max(600).optional(),
  key:z.string().max(30),sourceId:z.string().max(100).nullable(),label:z.string().max(120),prompt:z.string().max(1200),segment:z.string().max(300),reason:z.string().max(500),referenceIds:z.array(z.string().max(100)).max(2),
- role:z.enum(['environment','people','material']),boundary:z.enum(['silhouette','residue','field','whole']),transform:z.object({type:z.enum(TRANSFORMS),strength:z.number().min(.1).max(1),reason:z.string().max(500)}),placement
+ role:z.enum(['environment','people','material']),boundary:z.enum(['silhouette','residue','field','whole']),transform:z.object({type:z.enum(TRANSFORMS),strength:z.number().min(.1).max(1),reason:z.string().max(500)}),placement,
+ tier:z.enum(TIERS).optional(),edge:edge.optional()
 })).min(6).max(20)});
 
 export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
- const base=advanceSchema.shape.images.element,permitted=job.useReferences?referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)&&!['people','composition'].includes(a.archive?.category)).map(a=>a.id):[];
+ const base=advanceSchema.shape.images.element,permitted=job.useReferences?referenceArchive.filter(a=>a.allowReference&&!job.humanContextIds?.includes(a.id)&&referenceEligible(a)).map(a=>a.id):[];
  const transform=base.shape.transform,none=transform.extend({type:z.literal('none')});
  const enabled=permittedTransforms(job);
  // Every generated fragment carries one clearly visible enabled treatment.
@@ -37,7 +44,7 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
   const referenceIds=assigned?z.tuple(assigned.map(id=>z.literal(id))):referencePool.length?z.array(z.enum(referencePool)).min(1).max(2):z.array(z.string()).max(0);
   const boundary=requiredRole==='people'?z.enum(['silhouette','residue']):!a&&requiredRole==='environment'?z.literal('field'):z.enum(['silhouette','residue','field']);
   const plannedPlacement=placement.extend({width:z.number().min(.1).max(.9)});
-  slots[key]=base.extend({key:z.literal(key),sourceId:a?z.literal(a.id):z.null(),
+  slots[key]=base.extend({key:z.literal(key),sourceId:a?z.literal(a.id):z.null(),tier:z.enum(TIERS),edge:a||!job.tornEdges?z.literal('clean'):edge,
    role:requiredRole?z.literal(requiredRole):generatedRole,
    prompt:a?z.literal(''):z.string().min(40).max(1200),segment:z.string().min(8).max(300),
    referenceIds:a?z.array(z.string()).max(0):referenceIds,
@@ -45,8 +52,10 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
    boundary,placement:plannedPlacement,
    ...(job.researchDocuments?{researchIds:job.researchAssignments?.[key]?z.tuple(job.researchAssignments[key].map(id=>z.literal(id))):z.array(z.enum(job.researchDocuments.map(d=>d.id))).max(a?0:2),researchIntent:z.string().min(job.researchAssignments?.[key]?30:0).max(600)}:{})});
  }
- const papers=job.researchDocuments?.filter(isPaper)||[];
- return advanceSchema.extend({...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),...(papers.length?{papers:z.object(Object.fromEntries(papers.map(d=>[d.id,z.string().min(30).max(400)])))}:{})})}:{}),layerOrder:z.array(z.enum(Object.keys(slots))).length(job.count),images:z.object(slots)});
+ // Fixed detail slots, each tied to one generated image, keep extra cuts within the plan's reach.
+ const plannedPlacement=placement.extend({width:z.number().min(.06).max(.9)});
+ const details=Object.fromEntries(Object.entries(job.detailAssignments||{}).map(([key,sourceKey])=>[key,detail.extend({key:z.literal(key),sourceKey:z.literal(sourceKey),segment:z.string().min(8).max(300),edge:job.tornEdges?edge:z.literal('clean'),placement:plannedPlacement})]));
+ return advanceSchema.extend({...(Object.keys(details).length?{details:z.object(details)}:{}),...(job.researchDocuments?{researchComposition:researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),relationships:z.object(Object.fromEntries(job.researchDocuments.map(d=>[d.id,z.string().min(30).max(400)])))})}:{}),layerOrder:z.array(z.enum([...Object.keys(slots),...Object.keys(details)])).length(job.count+Object.keys(details).length),images:z.object(slots)});
 }
 
 export function validateAdvance(plan,archive,job,generatedCount,referenceArchive=archive){
@@ -69,14 +78,18 @@ export function validateAdvance(plan,archive,job,generatedCount,referenceArchive
   if(item.transform.type!=='none'&&!permittedTransforms(job).includes(item.transform.type))throw new Error('The plan uses a disabled transformation.');
   if(!job.recolouring&&item.transform.type==='recolour')throw new Error('Recolouring is switched off.');
   if(job.referenceAssignments?.[item.key]&&JSON.stringify(item.referenceIds)!==JSON.stringify(job.referenceAssignments[item.key]))throw new Error('The plan changed the required Chikukwa and water reference pair.');
-  for(const id of item.referenceIds)if(!job.useReferences||job.humanContextIds?.includes(id)||!referenceArchive.some(a=>a.id===id&&a.allowReference&&!['people','composition'].includes(a.archive?.category)))throw new Error('The plan uses an unpermitted image-generation reference.');
+  for(const id of item.referenceIds)if(!job.useReferences||job.humanContextIds?.includes(id)||!referenceArchive.some(a=>a.id===id&&a.allowReference&&referenceEligible(a)))throw new Error('The plan uses an unpermitted image-generation reference.');
  }
- if(plan.layerOrder&&(new Set(plan.layerOrder).size!==job.count||plan.layerOrder.some(key=>!keys.has(key))))throw new Error('Layer order must contain each image key exactly once.');
+ for(const item of plan.details||[]){
+  const source=plan.images.find(i=>i.key===item.sourceKey);
+  if(keys.has(item.key)||!source||source.sourceId)throw new Error('Each detail cut must come from one generated image.');keys.add(item.key);
+ }
+ if(plan.layerOrder&&(new Set(plan.layerOrder).size!==keys.size||plan.layerOrder.some(key=>!keys.has(key))))throw new Error('Layer order must contain each fragment key exactly once.');
  if(generated!==generatedCount)throw new Error('The plan changed the preflighted number of generated images. No image calls were made.');
  if(!job.includePeople&&plan.images.some(i=>!i.sourceId&&i.role==='people'))throw new Error('The plan includes people while people inclusion is switched off.');
  if(job.requiresGeneratedEnvironment&&!plan.images.some(i=>!i.sourceId&&i.role==='environment'))throw new Error('The plan omitted the required high-resolution environmental field.');
  const treated=plan.images.filter(i=>i.transform.type!=='none'),budget=treatmentBudget(generatedCount);
- if(treated.length>budget.maxImages||new Set(treated.map(i=>i.transform.type)).size>budget.maxTypes)throw new Error('The plan exceeds the restrained transformation budget.');
+ if(treated.length>budget.maxImages||new Set(treated.map(i=>i.transform.type)).size>budget.maxTypes)throw new Error('The plan exceeds the treatment budget.');
  if(plan.images.filter(i=>['silhouette','residue'].includes(i.boundary)).length<2)throw new Error('The plan needs visible SAM silhouettes, not only rectangular fields.');
  return plan;
 }

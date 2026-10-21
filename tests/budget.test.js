@@ -53,9 +53,11 @@ test('image-aware preflight excludes Venice from oversized steps while retaining
  assert.deepEqual(p.text.planner.candidates.map(c=>c.provider),['deepinfra/fp8']);
  assert.ok(p.text.vision.candidates.some(c=>c.provider==='venice/fp8'));assert.ok(p.total<=1);
  const large=await pricingPlan({count:20,generatedCount:12},fetcher);
- assert.equal(large.text.planner.imageCount,23);
+ assert.equal(large.text.planner.imageCount,15);
  for(const role of ['planner','vision'])assert.equal(large.text[role].candidates.some(c=>c.provider==='venice/fp8'),false);
- await assert.rejects(pricingPlan({count:10,generatedCount:6},catalogueFetcher([endpoint('venice/fp8')])),/13 input images.*No paid calls/);
+ // Ten images now send 9 archive images to planning, within Venice's limit; thirteen send 12.
+ assert.equal((await pricingPlan({count:10,generatedCount:6},catalogueFetcher([endpoint('venice/fp8')]))).text.planner.imageCount,9);
+ await assert.rejects(pricingPlan({count:13,generatedCount:8},catalogueFetcher([endpoint('venice/fp8')])),/with 1[23] input images.*No paid calls/);
 });
 
 test('provider pools admit healthier, more expensive alternatives beyond the old token-price ceiling',async()=>{

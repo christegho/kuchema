@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import {createStore} from '../server/store.js';
-import {archiveCategory,archiveCounts,selectOfficialArchive} from '../server/archive.js';
+import {archiveCategory,archiveCounts,selectOfficialArchive,referenceEligible} from '../server/archive.js';
 
 test('recursive official import classifies folders, deduplicates, preserves edits and retires missing sources',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'official-archive-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
@@ -61,4 +61,21 @@ test('official selection excludes legacy/derived sources, respects selection and
  assert.equal(noPeople.archive.length,0);assert.equal(noPeople.generatedCount,6);
  const noGeneral=assets.map(a=>({...a,allowReference:a.archive.category!=='general'}));
  assert.throws(()=>selectOfficialArchive(noGeneral,job(6)),/at least 2 general/);
+});
+
+test('3–6 Chikukwa/water references by collage size, and the open-access folder stays out until licensed',async t=>{
+ for(const [count,references,people] of [[6,2,3],[10,2,4],[12,2,5],[13,3,5],[20,3,8]]){const c=archiveCounts(count);assert.deepEqual([c.general,c.water,c.people],[references,references,people],String(count));}
+ for(const name of ['Open Access/plant.jpg','open-access/a.png','open_access/b.png'])assert.equal(archiveCategory(name),'open-access',name);
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'open-access-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const dir=path.join(root,'archive'),store=await createStore(path.join(root,'data'));
+ for(const [i,name] of ['general.png','Chikukwa Water Sites/water.png','Open Access/licensed-later.png'].entries()){
+  await fs.mkdir(path.dirname(path.join(dir,name)),{recursive:true});await fs.writeFile(path.join(dir,name),await sharp({create:{width:24,height:16,channels:3,background:{r:i*60,g:90,b:140}}}).png().toBuffer());
+ }
+ await store.importOfficialArchive(dir);
+ const open=store.state.assets.find(a=>a.archive?.category==='open-access');
+ assert.ok(open);assert.equal(open.allowReference,false);assert.equal(open.allowCrop,false);assert.equal(referenceEligible(open),false);
+ // Even with reference permission switched on by hand, it is never sampled as a Chikukwa reference.
+ const assets=[...pool(),{...open,id:'open',allowReference:true}];
+ for(let i=0;i<20;i++)assert.equal(selectOfficialArchive(assets,job(13)).contextArchive.some(a=>a.id==='open'),false);
+ assert.equal(referenceEligible({...open,allowReference:true}),false);assert.equal(referenceEligible({id:'legacy'}),true);
 });

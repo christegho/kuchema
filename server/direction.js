@@ -42,3 +42,14 @@ export function normalizeObservations(value,assets){
  }
  return data.images;
 }
+
+// Map each region to the fragment it serves: an exact key first, then the remaining targets in order.
+export function assignTargets(observations,targets){
+ for(const o of observations){
+  const wanted=targets.filter(t=>t.id===o.id),exact=new Set(o.regions.map(r=>r.key).filter(key=>wanted.some(t=>t.key===key)));
+  const free=wanted.filter(t=>!exact.has(t.key));let next=0;
+  for(const r of o.regions)r.targetKey=exact.has(r.key)?r.key:free[next++]?.key;
+  o.regions=o.regions.filter(r=>r.targetKey&&targets.length);
+ }
+ return observations;
+}

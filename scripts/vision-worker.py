@@ -43,8 +43,9 @@ def process(req):
         if len(b)!=4 or b[2]<=b[0] or b[3]<=b[1]: continue
         item={**region, 'box':b, 'confidence':None, 'detector':'VLM-directed box and point'}
         label=region.get('label','').lower()
-        human_target=any(word in label for word in human_words)
-        group_target=any(word in label for word in ['group','people','gathering','crowd','family','youth'])
+        # The pipeline states whether a target is a person; a detail such as a 'water body' is not.
+        human_target=bool(region['human']) if 'human' in region else any(word in label for word in human_words)
+        group_target=human_target and any(word in label for word in ['group','people','gathering','crowd','family','youth'])
         person_candidates=[d for d in boxes if d['label']=='person' and (
             iou(b,d['box'])>.08
             or (b[0]<=(d['box'][0]+d['box'][2])/2<=b[2] and b[1]<=(d['box'][1]+d['box'][3])/2<=b[3])
@@ -65,7 +66,7 @@ def process(req):
     for index,item in enumerate(targets):
         b=item['box']
         members=[]
-        if any(word in item.get('label','').lower() for word in ['group','people','gathering','crowd','family','youth']):
+        if item.get('human',True) and any(word in item.get('label','').lower() for word in ['group','people','gathering','crowd','family','youth']):
             members=[d for d in boxes if d['label']=='person' and (iou(b,d['box'])>.08 or (b[0]<=(d['box'][0]+d['box'][2])/2<=b[2] and b[1]<=(d['box'][1]+d['box'][3])/2<=b[3]))]
         if len(members)>1:
             prompts_list=[{'box':d['box'],'point':[(d['box'][0]+d['box'][2])/2,(d['box'][1]+d['box'][3])/2]} for d in members[:8]]

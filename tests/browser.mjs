@@ -56,6 +56,8 @@ try{
  assert.equal(await page.getByText('An image is also a set of relationships.',{exact:true}).count(),0);
  await page.getByRole('button',{name:'Context',exact:true}).click();await page.getByLabel('Text for this work').fill('A contributor account for the installation.');
  assert.match(await page.getByLabel('System prompt').inputValue(),/Kuchema: The Gathering/);
+ // The binding technical rules are shown read-only beside the editable system prompt.
+ const rules=page.getByLabel('Technical rules');assert.match(await rules.inputValue(),/^KUCHEMA — TECHNICAL RULES/);assert.equal(await rules.getAttribute('readonly'),'');
  await page.getByRole('button',{name:'Save',exact:true}).click();await until(()=>store.state.contextText==='A contributor account for the installation.');
  await page.screenshot({path:'test-results/installation-desktop.png',fullPage:true});
  await page.getByRole('navigation').getByRole('button',{name:/Archive/}).click();
@@ -122,11 +124,11 @@ try{
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
- await page.getByLabel('Research files',{exact:true}).selectOption('10');
+ await page.getByLabel('Research passages',{exact:true}).selectOption('6');
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
   assert.deepEqual(route.request().postDataJSON().ids,[],'The default must sample the full archive, including new images and regardless of browsing.');
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,10);assert.equal(body.researchCount,10);assert.deepEqual(body.researchIds,[]);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,10);assert.equal(body.researchCount,6);assert.equal(body.tornEdges,true);assert.deepEqual(body.researchIds,[]);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);

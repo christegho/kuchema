@@ -51,3 +51,19 @@ Root cause: study 86473e04's plan stopped mid-JSON at slot F09 (18,891 chars) �
 
 ## Review
 - The same study also shows the backend was never restarted: job `version: 8` and DeepInfra cut off at exactly 180 s. None of today's backend changes are live until the server restarts.
+
+# Three-part prompts, colleague feedback, several cuts per image, torn edges
+
+Plan: ~/.claude/plans/fancy-hugging-mochi.md
+
+- [x] 1. Prompts: system (A–E, people B kept), user (short text, people ¶ kept), technical prompt file; context.js + pipeline assembly; UI read-only rules
+- [x] 2. Research: 3–6 passages, ≥2 led, relationships; references 2+2 (3+3 >12); open-access safeguard
+- [x] 3. Torn-paper edges module + tests + edge sheet (background agent)
+- [x] 4. Several cuts per image: details slots, tiers, grounding/cutting/coverage/critique/retry
+- [x] 5. Docs clean-up; npm test, build, browser; server check then stop
+
+## Review
+- Prompts: system = colleague A–E (section B kept as archive-cutouts-only people); user = colleague short text (people paragraph kept); technical = training-data/technical_prompt.txt (8.5k chars, binding, read-only in UI, sent first in every call, snapshotted per job). ARCHIVE_IMAGE_RULES, CURRENT WORKFLOW CONSTRAINTS and contextRules removed from code; technical_details.md no longer sent to the planner.
+- Research 3–6 passages (default 4), ≥2 lead images, relationships for every passage; references 2+2 (3+3 above 12 images); open-access folder imported but never referenced until licences exist.
+- Several cuts per image: fixed detail slots (12–21 fragments), tiers with soft warning, per-fragment grounding/cuts/coverage/retries, review omissions restored. Torn-paper edges on generated fragments (people always clean).
+- npm test 105/105 (9.4 min under load avg ~26 and 17 GB swap), build ok, browser suite passes. New code verified booting on port 3101 with temp data, then stopped. User's own server (pid 31678, 17 Oct) still runs the old code on :3000.

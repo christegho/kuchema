@@ -42,7 +42,7 @@ op('kuchema_api').request(
     data=json.dumps({
         'prompt': 'Water connects land, plants and collective life.',
         'count': 6,
-        'researchCount': 4,  # 2–10 local research files
+        'researchCount': 4,  # 3–6 local research passages
         'researchIds': [],  # Empty selects from the whole research archive
         'includePeople': True,
         'enabledTransforms': ['water-flow', 'sediment-wash', 'print-grain'],
@@ -51,7 +51,7 @@ op('kuchema_api').request(
 )
 ```
 
-Research files guide at least two generated fragments and the composition. `researchCount` defaults to 4; `researchIds` optionally restricts the eligible pool using IDs returned by `/api/studio`. The job retains `researchDocuments`, `researchAssignments` and `researchCoverage` for attribution.
+Research passages guide at least two generated fragments and the composition. `researchCount` (3–6) defaults to 4; `researchIds` optionally restricts the eligible pool using IDs returned by `/api/studio`. The job retains `researchDocuments`, `researchAssignments` and `researchCoverage` for attribution.
 
 This uses the official archive and its random category-selection rules. `count` can be 6–20 and defaults to 10. People come from direct archive cutouts; generated components contain environmental material. `enabledTransforms` lists permitted treatments, not effects that must all be used. Pass `[]` to disable all treatments. Omit it to use the gentle server defaults. Browser checkbox preferences are local to the browser, so send your preferred list explicitly from TouchDesigner.
 

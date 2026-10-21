@@ -90,7 +90,7 @@ export async function createStore(directory) {
       const entries=memberships.get(asset.id);
       if(!entries){if(asset.archive)asset.archive.active=false;continue;}
       // A photograph present in several folders is one source; people always stay cutouts.
-      const category=['people','composition','water','general'].find(c=>entries.some(e=>e.category===c));
+      const category=['people','composition','water','general','open-access'].find(c=>entries.some(e=>e.category===c));
       if(!asset.archive){asset.allowCrop=category==='people';asset.allowReference=['general','water'].includes(category);asset.allowTransform=false;}
       asset.archive={active:true,category,paths:entries.map(e=>e.path),sacred:entries.some(e=>e.path.toLowerCase().includes('/sacred water sites/'))};
     }

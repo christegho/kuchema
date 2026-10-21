@@ -45,7 +45,7 @@ export async function materialSheet(store,materials,id){
     const img=await sharp(path.join(store.root,'media',`${m.asset.id}.png`)).resize(w-30,h-65,{fit:'inside',withoutEnlargement:true}).png().toBuffer({resolveWithObject:true});
     const x=i%cols*w,y=Math.floor(i/cols)*h;
     overlays.push({input:img.data,left:x+Math.round((w-img.info.width)/2),top:y+10+Math.round((h-65-img.info.height)/2)});
-    const label=Buffer.from(`<svg width="${w}" height="45"><text x="15" y="16" font-family="Arial" font-size="14" fill="#222">${esc(m.key)} · ${m.asset.kind} · ${m.asset.derived?'SAM cut':'whole source'}</text><text x="15" y="35" font-family="Arial" font-size="11" fill="#555">${esc(m.label.slice(0,38))}</text></svg>`);
+    const label=Buffer.from(`<svg width="${w}" height="45"><text x="15" y="16" font-family="Arial" font-size="14" fill="#222">${esc(m.key)}${m.tier?` · ${m.tier}`:''} · ${m.asset.kind} · ${m.asset.derived?'SAM cut':'whole source'}</text><text x="15" y="35" font-family="Arial" font-size="11" fill="#555">${esc(m.label.slice(0,38))}</text></svg>`);
     overlays.push({input:label,left:x,top:y+h-45});
   }
   const output=path.join(store.root,'media',`${id}.png`);
