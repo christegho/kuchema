@@ -502,3 +502,33 @@ test('a layout review that drops fragments keeps their draft placement instead o
  // A tier mix far from 3–5 dominant, 4–7 medium and 5–9 small is reported, not fatal.
  assert.ok(job.warnings.some(w=>/^Scale hierarchy: /.test(w)));
 });
+
+test('broken detail cuts in a paid plan are skipped and the collage is still made',async t=>{
+ const store=await fixture(t);
+ // D01 is too small (kept at the smallest width), D02 names no subject, D03 claims the wrong source image.
+ const mutatePlan=plan=>{const d=Object.fromEntries(plan.details.map(x=>[x.key,x]));d.D01.placement.width=.02;d.D02.segment='';d.D03.sourceKey='F01';return plan;};
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{mutatePlan})});
+ const job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'complete',job.error);
+ assert.deepEqual(job.plan.details.map(d=>d.key),['D01','D04','D05','D06']);assert.equal(job.plan.details[0].placement.width,.06);
+ assert.deepEqual(job.planRepairs.skipped.map(s=>s.key),['D02','D03']);
+ assert.equal(job.materials.some(m=>['D02','D03'].includes(m.key)),false);assert.equal(job.project.layers.length,10);
+ assert.ok(job.warnings.some(w=>/^Planning: detail D02 was skipped/.test(w)));assert.ok(job.warnings.some(w=>/^Planning: 1 out-of-range value was adjusted/.test(w)));
+});
+
+test('an unusable layout review keeps the draft collage',async t=>{
+ const store=await fixture(t),base=requestDouble(store);
+ const request=async(endpoint,body)=>body.response_format?.json_schema?.name==='collage_critique'?json({assessment:'Incomplete',revise:true}):base(endpoint,body);
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request}),job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'complete',job.error);assert.equal(job.critique,undefined);assert.deepEqual(job.finalLayout,job.initialLayout);
+ assert.ok(job.warnings.some(w=>/usable layout review, so the draft arrangement was kept/.test(w)));
+ // The unusable review is never recorded as a decision; the planning decision still is.
+ assert.equal(job.decisions.some(d=>d.step==='Collage critique'),false);assert.ok(job.decisions.some(d=>d.step==='Advance collage plan'));
+});
+
+test('a rejected OpenRouter key stops the study before any paid call',async t=>{
+ const store=await fixture(t);let calls=0;
+ const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:async()=>{calls++;},keyCheck:async()=>{throw new Error('OpenRouter rejected the API key (“User not found.”). No paid calls were made.');}});
+ const job=await pipeline.start(input());await pipeline.running;
+ assert.equal(job.status,'failed');assert.match(job.error,/rejected the API key/);assert.equal(calls,0);assert.equal(job.ledger.length,0);
+});

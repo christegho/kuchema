@@ -77,3 +77,12 @@ Root cause: the planning schema kept the legacy `papers` record under researchCo
 - [x] Grammar rejections (400/422 grammar / JSON schema / guided decoding) fail over to the next provider
 - [x] Tests: keyword audit across 11 study configurations + grounding + critique; guard strips `propertyNames`; failover on the observed error. `npm test` 108/108
 - [x] Live check (`scripts/check-structured-outputs.mjs`): all 3 schemas accepted by Parasail, DeepInfra and Venice; control with the old schema reproduces the Parasail error. Cost < $0.001.
+
+# "A model returned an invalid response: details.N.placement.width Too small (>=0.1)"
+
+Root cause: the planner's schema allows detail cuts down to 0.06 of the canvas width, but the saved-plan schema still required 0.1, so a valid paid plan was rejected after the planning call.
+
+- [x] Shared placement ranges (`PLACEMENT`, `VISIBLE_STRENGTH`) used by the planner schema, saved plans and repair
+- [x] `repairPlan`: clamp out-of-range numbers, skip invalid detail cuts, complete layer order; warnings + `job.planRepairs`
+- [x] Every step validates inside the provider attempt (`accept`): an unusable answer is `INVALID_ANSWER` and the next provider answers; an unusable review keeps the draft
+- [x] Tests: repair rules, broken details in a full study, accept failover, unusable review

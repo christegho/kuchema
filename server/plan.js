@@ -13,7 +13,11 @@ export const creationInput=z.object({
  aesthetic:z.enum(['prompt','cut-paper','continuous']).default('prompt'),generation:z.enum(['needed','always']).default('needed'),
  tornEdges:z.boolean().default(true),contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
 });
-const placement=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().min(.1).max(1.8),rotation:z.number().min(-35).max(35)});
+// Placement ranges shared by the planner's schema, saved plans and plan repair.
+export const PLACEMENT={x:[0,1],y:[0,1],rotation:[-35,35],width:[.1,.9],detailWidth:[.06,.9]},VISIBLE_STRENGTH=[.5,1];
+const range=([min,max])=>z.number().min(min).max(max);
+// Saved plans accept every width the planner may give, including small detail cuts.
+const placement=z.object({x:range(PLACEMENT.x),y:range(PLACEMENT.y),width:z.number().min(PLACEMENT.detailWidth[0]).max(1.8),rotation:range(PLACEMENT.rotation)});
 // relationships maps every selected passage to the visual relationship or layout consequence it creates
 // (studies before 19 Oct recorded `papers` instead). Free-form records are for reading saved plans only:
 // providers receive fixed keys, because some grammar engines reject `propertyNames`.
@@ -34,7 +38,7 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
  const transform=base.shape.transform,none=transform.extend({type:z.literal('none')});
  const enabled=permittedTransforms(job);
  // Every generated fragment carries one clearly visible enabled treatment.
- const visibleTransform=transform.extend({type:z.enum(enabled.length?enabled:['none']),strength:z.number().min(.5).max(1)});
+ const visibleTransform=transform.extend({type:z.enum(enabled.length?enabled:['none']),strength:range(VISIBLE_STRENGTH)});
  // Fixed slots avoid ambiguous unions in constrained multimodal decoding. Retrieval supplies
  // the originals; the visual director still chooses every subject, treatment and placement.
  const slots={};
@@ -45,7 +49,7 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
   const referencePool=permitted,assigned=job.referenceAssignments?.[key];
   const referenceIds=assigned?z.tuple(assigned.map(id=>z.literal(id))):referencePool.length?z.array(z.enum(referencePool)).min(1).max(2):z.array(z.string()).max(0);
   const boundary=requiredRole==='people'?z.enum(['silhouette','residue']):!a&&requiredRole==='environment'?z.literal('field'):z.enum(['silhouette','residue','field']);
-  const plannedPlacement=placement.extend({width:z.number().min(.1).max(.9)});
+  const plannedPlacement=placement.extend({width:range(PLACEMENT.width)});
   slots[key]=base.extend({key:z.literal(key),sourceId:a?z.literal(a.id):z.null(),tier:z.enum(TIERS),edge:a||!job.tornEdges?z.literal('clean'):edge,
    role:requiredRole?z.literal(requiredRole):generatedRole,
    prompt:a?z.literal(''):z.string().min(40).max(1200),segment:z.string().min(8).max(300),
@@ -55,9 +59,30 @@ export function advanceFor(archive,job,generatedCount,referenceArchive=archive){
    ...(job.researchDocuments?{researchIds:job.researchAssignments?.[key]?z.tuple(job.researchAssignments[key].map(id=>z.literal(id))):z.array(z.enum(job.researchDocuments.map(d=>d.id))).max(a?0:2),researchIntent:z.string().min(job.researchAssignments?.[key]?30:0).max(600)}:{})});
  }
  // Fixed detail slots, each tied to one generated image, keep extra cuts within the plan's reach.
- const plannedPlacement=placement.extend({width:z.number().min(.06).max(.9)});
+ const plannedPlacement=placement.extend({width:range(PLACEMENT.detailWidth)});
  const details=Object.fromEntries(Object.entries(job.detailAssignments||{}).map(([key,sourceKey])=>[key,detail.extend({key:z.literal(key),sourceKey:z.literal(sourceKey),segment:z.string().min(8).max(300),edge:job.tornEdges?edge:z.literal('clean'),placement:plannedPlacement})]));
  return advanceSchema.extend({...(Object.keys(details).length?{details:z.object(details)}:{}),researchComposition:job.researchDocuments?researchComposition.extend({sourceIds:z.tuple(job.researchDocuments.map(d=>z.literal(d.id))),relationships:z.object(Object.fromEntries(job.researchDocuments.map(d=>[d.id,z.string().min(30).max(400)])))}):researchComposition.optional(),layerOrder:z.array(z.enum([...Object.keys(slots),...Object.keys(details)])).length(job.count+Object.keys(details).length),images:z.object(slots)});
+}
+
+// A paid plan is repaired rather than discarded where that is safe: numbers just outside a
+// placement or treatment range are clamped, a detail cut that is still invalid is skipped
+// (details are optional extras), and the layer order is completed. Every change is reported.
+export function repairPlan(raw,schema){
+ const notes=[],skipped=[];
+ const clamp=(object,key,[min,max],where)=>{const value=object?.[key];if(typeof value==='number'&&Number.isFinite(value)&&(value<min||value>max)){object[key]=Math.min(max,Math.max(min,value));notes.push(`${where}.${key} ${value} → ${object[key]}`);}};
+ const place=(item,where,width)=>{for(const key of ['x','y','rotation'])clamp(item?.placement,key,PLACEMENT[key],`${where}.placement`);clamp(item?.placement,'width',width,`${where}.placement`);};
+ for(const [key,item] of Object.entries(raw.images||{})){place(item,key,PLACEMENT.width);if(item?.transform?.type&&item.transform.type!=='none')clamp(item.transform,'strength',VISIBLE_STRENGTH,`${key}.transform`);}
+ const slots=schema.shape.details?.shape||{};
+ for(const [key,item] of Object.entries(raw.details||{})){
+  place(item,key,PLACEMENT.detailWidth);
+  const check=slots[key]?.safeParse(item);
+  if(!check?.success){delete raw.details[key];skipped.push({key,reason:check?check.error.issues.slice(0,2).map(i=>`${i.path.join('.')} ${i.message}`).join('; '):'not a planned detail slot'});}
+ }
+ if(raw.details&&!Object.keys(raw.details).length)delete raw.details;
+ const keys=[...Object.keys(raw.images||{}),...Object.keys(raw.details||{})],order=[...new Set((Array.isArray(raw.layerOrder)?raw.layerOrder:[]).filter(key=>keys.includes(key)))];
+ if(order.length!==(raw.layerOrder||[]).length||order.length!==keys.length)notes.push('layerOrder completed with every remaining fragment');
+ raw.layerOrder=[...order,...keys.filter(key=>!order.includes(key))];
+ return {raw,notes,skipped};
 }
 
 export function validateAdvance(plan,archive,job,generatedCount,referenceArchive=archive){

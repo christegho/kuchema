@@ -12,14 +12,25 @@ export function unusableAnswer(result,body,provider){
   try{parseJsonResponse(result);return null;}catch{return new RouterError(`The answer${source} was not valid JSON.`,{status:200,code:'MALFORMED_JSON',provider});}
 }
 
-export async function routedTextCall({job,budget,quote,label,body,request,persist,unavailable=new Set()}){
+// `accept` turns an answer into what the step needs (parsing, validation, repair). An answer
+// it cannot use counts as a failed attempt, so the next provider is asked instead of stopping.
+async function accepted(accept,result,provider){
+  if(!accept)return result;
+  try{result.accepted=await accept(result);return result;}
+  catch(error){
+    const reason=Array.isArray(error?.issues)?error.issues.slice(0,3).map(i=>`${i.path.join('.')} ${i.message}`).join('; '):error.message;
+    throw new RouterError(`The answer${provider?` from ${provider}`:''} could not be used: ${reason}`.slice(0,500),{status:200,code:'INVALID_ANSWER',provider});
+  }
+}
+
+export async function routedTextCall({job,budget,quote,label,body,request,persist,unavailable=new Set(),accept=null}){
   const imageCount=requestImageCount(body);
   if(!quote.candidates?.length){
     // Retain compatibility with saved quotes/test adapters from before provider pools.
     if(imageCount>providerImageLimit(body.model,quote.provider))throw new Error(`The quoted provider cannot accept ${imageCount} input images. No request was sent.`);
     const provider={max_price:TOKEN_PRICE_LIMIT,allow_fallbacks:false,require_parameters:true,...(quote.provider?{only:[quote.provider]}:{})};
     const result=await budget.call(label,body.model,quote.bound,()=>request('chat/completions',{...body,provider})),unusable=unusableAnswer(result,body,quote.provider);
-    if(unusable)throw unusable;return result;
+    if(unusable)throw unusable;return accepted(accept,result,quote.provider);
   }
   const candidates=quote.candidates.filter(candidate=>imageCount<=providerImageLimit(body.model,candidate.provider));
   if(!candidates.length)throw new Error(`No checked provider supports this step's ${imageCount} input images. No request was sent.`);
@@ -35,6 +46,7 @@ export async function routedTextCall({job,budget,quote,label,body,request,persis
     try{
       const result=await budget.call(`${label} · ${candidate.name||candidate.provider}`,body.model,candidate.bound,()=>request('chat/completions',{...body,provider}));
       const unusable=unusableAnswer(result,body,candidate.provider);if(unusable)throw unusable;
+      await accepted(accept,result,candidate.provider);
       attempt.status='complete';attempt.actualProvider=result.provider||candidate.provider;
       if(index>0){job.warnings||=[];job.warnings.push(`${label} continued with ${attempt.actualProvider} after another provider failed.`);}
       await persist();return result;

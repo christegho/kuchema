@@ -1,7 +1,8 @@
 import test from 'node:test';
+import {z} from 'zod';
 import assert from 'node:assert/strict';
 import {Budget,MAX_COST} from '../server/budget.js';
-import {RouterError,REQUEST_DEADLINE_MS,routerRequest,retryableProviderError,parseJsonResponse} from '../server/ai.js';
+import {RouterError,REQUEST_DEADLINE_MS,routerRequest,retryableProviderError,parseJsonResponse,checkApiKey} from '../server/ai.js';
 import {routedTextCall} from '../server/routing.js';
 
 const candidates=[
@@ -174,6 +175,17 @@ test('a provider whose grammar engine rejects the response schema fails over to 
  assert.equal(retryableProviderError(new RouterError('Invalid prompt',{status:400,code:400})),false);
 });
 
+test('an answer the step cannot use is a failed attempt, and the next provider answers',async()=>{
+ const sent=[],f=fixture(async(_,body)=>{sent.push(body.provider.only[0]);return {usage:{cost:.001},choices:[{message:{content:sent.length===1?'{"title":5}':'{"title":"ok"}'}}]};});
+ const accept=result=>z.object({title:z.string()}).parse(JSON.parse(result.choices[0].message.content));
+ const result=await routedTextCall({...f.args,accept});
+ assert.deepEqual(sent,['dekallm','nebius/fp8']);assert.deepEqual(result.accepted,{title:'ok'});
+ assert.equal(f.job.providerAttempts[0].code,'INVALID_ANSWER');assert.match(f.job.providerAttempts[0].error,/could not be used: title/);
+ assert.deepEqual(f.job.ledger.map(r=>r.status),['complete','complete']);
+ let calls=0;const all=fixture(async()=>{calls++;return {usage:{cost:.001},choices:[{message:{content:'{}'}}]};});
+ await assert.rejects(routedTextCall({...all.args,accept}),error=>error.code==='INVALID_ANSWER'&&retryableProviderError(error));assert.equal(calls,2);
+});
+
 test('auth, credit, invalid-input and malformed-content errors never trigger provider retries',async()=>{
  for(const error of [new RouterError('Credits exhausted',{status:402,code:402}),new RouterError('Invalid key',{status:401,code:401}),new RouterError('Invalid prompt',{status:400,code:400}),new Error('Incomplete JSON'),new TypeError('Programming bug')]){
   let attempts=0;const f=fixture(async()=>{attempts++;throw error;});
@@ -206,4 +218,17 @@ test('router preserves upstream status/provider for failover and redacts key-sha
  const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
  t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify({error:{code:429,message:'Provider returned error',metadata:{provider_name:'DekaLLM',raw:'rate limited sk-test-secret'}}}),{status:429,headers:{'Content-Type':'application/json'}}));
  await assert.rejects(routerRequest('chat/completions',{}),error=>error instanceof RouterError&&error.code===429&&error.provider==='DekaLLM'&&error.message.includes('[redacted]')&&!error.message.includes('sk-test-secret'));
+});
+
+test('a rejected key or exhausted credit is explained before any paid call, without blocking on network trouble',async t=>{
+ const key=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='test-key';t.after(()=>{if(key===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=key;});
+ const answer=(status,body)=>t.mock.method(globalThis,'fetch',async url=>{assert.equal(url,'https://openrouter.ai/api/v1/key');return Response.json(body,{status});});
+ answer(401,{error:{message:'User not found.',code:401}});
+ await assert.rejects(checkApiKey(),/OpenRouter rejected the API key \(“User not found\.”\)\. Create a new key at https:\/\/openrouter\.ai\/settings\/keys.*No paid calls were made/);
+ answer(200,{data:{limit:5,limit_remaining:0,usage:5}});await assert.rejects(checkApiKey(),/credit limit/);
+ answer(200,{data:{limit:null,limit_remaining:null,usage:1}});await checkApiKey();
+ t.mock.method(globalThis,'fetch',async()=>{throw new TypeError('fetch failed');});await checkApiKey();
+ // The same explanation replaces OpenRouter's terse message on a paid request.
+ t.mock.method(globalThis,'fetch',async()=>Response.json({error:{message:'User not found.',code:401}},{status:401}));
+ await assert.rejects(routerRequest('chat/completions',{}),error=>error.code===401&&/rejected the API key/.test(error.message)&&!retryableProviderError(error));
 });

@@ -21,8 +21,22 @@ const timedOut=error=>['TimeoutError','AbortError'].includes(error?.name)||['UND
 // replaced by another provider whose engine can.
 const grammarRejected=error=>[400,422].includes(error.code)&&/grammar|unimplemented keys|json[ _-]?schema|guided decod|structured output/i.test(error.message);
 export function retryableProviderError(error,imageCount=0){
-  if(error instanceof RouterError)return ['TIMEOUT','TRUNCATED','MALFORMED_JSON'].includes(error.code)||grammarRejected(error)||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
+  if(error instanceof RouterError)return ['TIMEOUT','TRUNCATED','MALFORMED_JSON','INVALID_ANSWER'].includes(error.code)||grammarRejected(error)||(error.code==='UNREADABLE_RESPONSE'&&error.status>=200&&error.status<300)||[404,408,429,500,502,503,504].includes(error.code)||[408,429,500,502,503,504].includes(error.status)||([400,422].includes(error.code)&&Number.isSafeInteger(error.maxInputImages)&&error.maxInputImages>=0&&imageCount>error.maxInputImages);
   return timedOut(error)||['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(error?.cause?.code);
+}
+
+// Account-level failures get a clear next step instead of the provider's terse message.
+const KEY_HELP='Create a new key at https://openrouter.ai/settings/keys, set OPENROUTER_API_KEY in .env and restart the studio.';
+export const accountMessage=(status,message)=>status===401||status===403?`OpenRouter rejected the API key (“${message}”). ${KEY_HELP}`:status===402?`OpenRouter reports insufficient credit (“${message}”). Add credit at https://openrouter.ai/settings/credits.`:message;
+/** Free preflight: confirms the key is accepted and still has credit before any paid call. */
+export async function checkApiKey(){
+  if(!process.env.OPENROUTER_API_KEY)throw new Error('Add OPENROUTER_API_KEY to .env and restart the studio to use AI.');
+  let response;
+  try{response=await fetch('https://openrouter.ai/api/v1/key',{headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`},signal:AbortSignal.timeout(20000)});}
+  catch{return;} // Network failures surface in the price check, which needs the same connection.
+  const body=await response.json().catch(()=>({}));
+  if([401,403].includes(response.status))throw new Error(`${accountMessage(response.status,body.error?.message||'unauthorised')} No paid calls were made.`);
+  if(typeof body.data?.limit_remaining==='number'&&body.data.limit_remaining<=0)throw new Error('The OpenRouter key has reached its credit limit. Raise the limit or add credit at https://openrouter.ai/settings/keys. No paid calls were made.');
 }
 
 export async function routerRequest(endpoint, body) {
@@ -52,7 +66,7 @@ export async function routerRequest(endpoint, body) {
   if(!result||typeof result!=='object'||Array.isArray(result))throw unreadable();
   if (!response.ok || result.error) {
     const detail=result.error?.metadata;
-    const message = String((result.error?.message || `OpenRouter returned ${response.status}`)+(detail?.provider_name?` (${detail.provider_name})`:'')+(typeof detail?.raw==='string'?`: ${detail.raw}`:'')).replace(/sk-[\w-]+/g, '[redacted]');
+    const message = String(accountMessage(Number(result.error?.code)||response.status,result.error?.message || `OpenRouter returned ${response.status}`)+(detail?.provider_name?` (${detail.provider_name})`:'')+(typeof detail?.raw==='string'?`: ${detail.raw}`:'')).replace(/sk-[\w-]+/g, '[redacted]');
     throw new RouterError(message.slice(0, 500),{status:response.status,code:Number(result.error?.code)||response.status,provider:detail?.provider_name,maxInputImages:reportedImageLimit(message)});
   }
   return result;
