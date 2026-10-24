@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {canvasOf} from '../shared/canvas.js';
 import {canvasGround} from '../shared/ground.js';
 import {api,download,initialProject,makeLayer,uid,useHistory} from './lib';
 import {CollageCanvas,type CanvasHandle} from './Canvas';
@@ -91,7 +92,7 @@ function Installation({initial}:{initial:Studio}){
     {!presentation&&<header><span className="site-name">Kuchema</span><nav><button onClick={()=>setModal('archive')}>Archive <sup>{sourceAssets.length}</sup></button><button onClick={()=>setModal('studies')}>Studies <sup>{completed.length}</sup></button><button onClick={()=>setPresentation(true)}>View</button></nav></header>}
     {presentation&&<button className="exit-view" onClick={()=>setPresentation(false)}>Close view ↙</button>}
     <main>
-      <div className={`work-area ${editing?'is-editing':''}`}>
+      <div className={`work-area ${editing?'is-editing':''}`} style={{'--canvas-aspect':String(canvasOf(project).width/canvasOf(project).height)} as React.CSSProperties}>
         <figure className="artwork">
           <div className={`image-space ${active?'is-working':''}`}>
             {project.layers.length?<CollageCanvas ref={canvas} project={project} assets={assets} selected={editing?selected:null} onSelect={id=>{if(active)return;if(editing){if(cutting&&id===selected)return;setSelected(id);setCutting(false);setPoints([]);}else{const a=assets.find(a=>a.id===project.layers.find(l=>l.id===id)?.assetId);if(a)setContext(a);}}} onChange={changeLayer} cutting={cutting} cutPoints={points} onCutPoint={(x,y)=>setPoints(p=>[...p,x,y])} showSources={false} editable={editing&&!active}/>:<div className="archive-preview">{sourceAssets.slice(0,3).map(a=><img key={a.id} src={a.url} alt={a.title}/>)}{!sourceAssets.length&&<button onClick={()=>setModal('archive')}>Begin with an archive ↗</button>}</div>}

@@ -3,7 +3,6 @@
 // paid image calls. Tier counts are targets: a missed target is reported, never fatal.
 export const TIERS=['dominant','medium','small'];
 export const TIER_TARGETS={dominant:[3,5],medium:[4,7],small:[5,9]};
-export const TIER_WIDTHS={dominant:'at least 0.35 of the canvas width',medium:'0.18–0.35 of the canvas width',small:'under 0.18 of the canvas width'};
 const MAX_FRAGMENTS=21,MAX_DETAILS=6;
 
 export const detailCount=count=>Math.max(1,Math.min(MAX_DETAILS,MAX_FRAGMENTS-count));

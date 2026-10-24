@@ -86,3 +86,15 @@ Root cause: the planner's schema allows detail cuts down to 0.06 of the canvas w
 - [x] `repairPlan`: clamp out-of-range numbers, skip invalid detail cuts, complete layer order; warnings + `job.planRepairs`
 - [x] Every step validates inside the provider attempt (`accept`): an unusable answer is `INVALID_ANSWER` and the next provider answers; an unusable review keeps the draft
 - [x] Tests: repair rules, broken details in a full study, accept failover, unusable review
+
+# Panoramic 5760 × 1080 collages on black, bounded fragment sizes
+
+Plan: ~/.claude/plans/fancy-hugging-mochi.md
+
+- [x] Canvas model (shared/canvas.js), black ground, schema canvas field
+- [x] Size limits (server/scale.js) in assemble + coverage repair; people inside frame
+- [x] Coverage, render, referenceData, pipeline (21:9 environments, outputs, prompts)
+- [x] UI canvas/export/presets; docs
+- [x] Tests; real-material re-render of 8fac6063; boot check then stop
+- [x] All of the above. npm test 119/119, build, browser (incl. 5760 × 1080 editor export).
+- Real-material check: study 8fac6063 re-composed on the panorama: 5760 × 1080 PNG, black, people 42–80% of height inside the frame (one held at 42% by its small source, reported), coverage 58% → 88% after field-size and gap-filling repair (old plan had one dominant field; new plans ask for 3–5 panoramic fields).

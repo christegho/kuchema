@@ -14,7 +14,9 @@ export const creationInput=z.object({
  tornEdges:z.boolean().default(true),contextText:z.string().max(12000).default(''),systemPrompt:z.string().max(16000).optional(),requestId:z.string().uuid()
 });
 // Placement ranges shared by the planner's schema, saved plans and plan repair.
-export const PLACEMENT={x:[0,1],y:[0,1],rotation:[-35,35],width:[.1,.9],detailWidth:[.06,.9]},VISIBLE_STRENGTH=[.5,1];
+// Widths are fractions of the canvas width; on the 16:3 panorama a person is only ~0.05 wide.
+// Final sizes are enforced by height after cutting (server/scale.js).
+export const PLACEMENT={x:[0,1],y:[0,1],rotation:[-35,35],width:[.02,.6],detailWidth:[.02,.6]},VISIBLE_STRENGTH=[.5,1];
 const range=([min,max])=>z.number().min(min).max(max);
 // Saved plans accept every width the planner may give, including small detail cuts.
 const placement=z.object({x:range(PLACEMENT.x),y:range(PLACEMENT.y),width:z.number().min(PLACEMENT.detailWidth[0]).max(1.8),rotation:range(PLACEMENT.rotation)});

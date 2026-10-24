@@ -106,7 +106,7 @@ This snippet is callback-body code, not a complete callback definition. Use the 
 
 Movie File In TOP supports loading images through HTTP. See the [Movie File In TOP documentation](https://docs.derivative.ca/Movie_File_In_TOP).
 
-The generated collage is a 2400 × 1500 PNG. Connect the TOP to your effects and projection network. For smooth transitions, keep the previous image in a second TOP and crossfade after the new image has loaded.
+The generated collage is a 5760 × 1080 PNG (16:3), one image spanning three 1920 × 1080 outputs; split it into three 1920-pixel-wide crops for the screens. Studies made before the panorama are 2400 × 1500. Connect the TOP to your effects and projection network. For smooth transitions, keep the previous image in a second TOP and crossfade after the new image has loaded.
 
 ## 5. Animate individual fragments
 
@@ -120,7 +120,7 @@ http://127.0.0.1:3000/media/<assetId>.png
 
 Load each cutout into its own Movie File In TOP and use the saved layout as its starting arrangement. The automatic cutouts preserve transparency, allowing TouchDesigner to animate the original people cutouts and generated environmental material independently.
 
-Layout coordinates use a 1600 × 1000 canvas with the origin at the top left. Preserve layer order and account for TouchDesigner's coordinate and pivot conventions when translating the positions and rotations. The final flattened PNG is rendered at 1.5 times that working resolution.
+Layout coordinates use the project's `canvas` (5760 × 1080) with the origin at the top left; the final PNG is rendered at that same resolution. Projects without a `canvas` field use the legacy 1600 × 1000 canvas, rendered at 1.5×. Preserve layer order and account for TouchDesigner's coordinate and pivot conventions when translating the positions and rotations.
 
 ## API reference
 

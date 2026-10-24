@@ -1,13 +1,16 @@
 import sharp from 'sharp';
 import path from 'node:path';
-import {MAX_WORK_UPSCALE} from './compose.js';
+import {LEGACY_CANVAS,canvasOf} from '../shared/canvas.js';
+import {MAX_LAYER_AREA,limitLayer,resized} from './scale.js';
 
-export const COMPOSITION_LIMITS={maxLayerArea:.58,minRetention:.25,minVisible:.004};
-const canvasArea=1600*1000;
+export const COMPOSITION_LIMITS={maxLayerArea:MAX_LAYER_AREA,minRetention:.25,minVisible:.004};
+// A measuring grid with the canvas's proportions and about `cells` samples (320 × 200 for 1600 × 1000).
+const grid=(canvas,cells)=>{const width=Math.round(Math.sqrt(cells*canvas.width/canvas.height));return {width,height:Math.round(cells/width)};};
 
 // Measure alpha after occlusion and before it, so a tiny visible sliver cannot
 // disguise a whole stack of hidden images. Rectangles alone do not prove coverage.
-export async function coverageReader(store,materials,{width=320,height=200}={}){
+export async function coverageReader(store,materials,{canvas=LEGACY_CANVAS,cells=64000}={}){
+ const {width,height}=grid(canvas,cells);
  const masks=new Map();
  // Visibility is kept per fragment (several cuts can share one source image) and per source image.
  for(const m of materials){const a=m.asset;const image=await sharp(path.join(store.root,'media',`${a.id}.png`)).resize(240,240,{fit:'inside'}).ensureAlpha().raw().toBuffer({resolveWithObject:true});masks.set(a.id,{...image,key:m.key||m.rootId||a.rootId||a.id,rootId:m.rootId||a.rootId||a.id});}
@@ -18,7 +21,7 @@ export async function coverageReader(store,materials,{width=320,height=200}={}){
    const m=masks.get(l.assetId);if(!m)continue;
    const rad=l.rotation*Math.PI/180,c=Math.cos(rad),s=Math.sin(rad);let pixels=0,footprint=0;
    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-    const dx=(x+.5)*1600/W-l.x,dy=(y+.5)*1000/H-l.y;
+    const dx=(x+.5)*canvas.width/W-l.x,dy=(y+.5)*canvas.height/H-l.y;
     const u=(dx*c+dy*s)/l.width,v=(-dx*s+dy*c)/l.height;
     if(u<0||u>=1||v<0||v>=1)continue;
     const alpha=m.data[(Math.floor(v*m.info.height)*m.info.width+Math.floor(u*m.info.width))*4+3]/255*l.opacity;
@@ -28,45 +31,49 @@ export async function coverageReader(store,materials,{width=320,height=200}={}){
    footprints[m.key]=(footprints[m.key]||0)+footprint/N;
   }
   let filled=0;for(const r of remaining)if(r<.1)filled++;
+  // The widest uncovered band (a window of columns), so repair can move material onto it.
+  const open=new Float32Array(W),span=Math.max(1,Math.round(W/12));let rows=0,count=0;
+  for(let x=0;x<W;x++)for(let y=0;y<H;y++)if(remaining[y*W+x]>=.1)open[x]++;
+  let best=-1,start=0;for(let x=0,sum=0;x<W;x++){sum+=open[x]-(x>=span?open[x-span]:0);if(x>=span-1&&sum>best){best=sum;start=x-span+1;}}
+  for(let x=start;x<start+span;x++)for(let y=0;y<H;y++)if(remaining[y*W+x]>=.1){rows+=y;count++;}
+  const gap=count?{x:(start+span/2)*canvas.width/W,y:(rows/count+.5)*canvas.height/H,share:count/N}:null;
   const retention=Object.fromEntries(Object.keys(visible).map(id=>[id,footprints[id]?visible[id]/footprints[id]:0]));
   // A small detail is not obscured just for being small: compare it with its own footprint.
   const obscuredIds=Object.keys(visible).filter(id=>retention[id]<COMPOSITION_LIMITS.minRetention||visible[id]<Math.min(COMPOSITION_LIMITS.minVisible,.4*footprints[id]));
-  return {keyedBy:'fragment',coverage:filled/N,visible,footprints,retention,obscuredIds,rootVisible,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(rootVisible).filter(n=>n>=.002).length};
+  return {keyedBy:'fragment',coverage:filled/N,gap,visible,footprints,retention,obscuredIds,rootVisible,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(rootVisible).filter(n=>n>=.002).length};
  };
 }
 
-function resized(layer,factor){
- const width=layer.width*factor,height=layer.height*factor,rad=layer.rotation*Math.PI/180;
- return {...layer,width,height,x:layer.x-((width-layer.width)*Math.cos(rad)-(height-layer.height)*Math.sin(rad))/2,y:layer.y-((width-layer.width)*Math.sin(rad)+(height-layer.height)*Math.cos(rad))/2};
-}
-function bounded(layer,asset){
- const factor=Math.min(1,Math.sqrt(COMPOSITION_LIMITS.maxLayerArea*canvasArea/(layer.width*layer.height)),asset.width*MAX_WORK_UPSCALE/layer.width,asset.height*MAX_WORK_UPSCALE/layer.height);
- return factor<1?resized(layer,factor):layer;
-}
 export async function fillComposition(store,project,materials){
- const measure=await coverageReader(store,materials,{width:160,height:100}),changes=[],count=new Set(materials.map(m=>m.rootId||m.asset.rootId||m.asset.id)).size;
- const assets=new Map(materials.map(m=>[m.asset.id,m.asset]));
+ const canvas=canvasOf(project),sizes=Boolean(project.canvas),measure=await coverageReader(store,materials,{canvas,cells:16000}),changes=[],count=new Set(materials.map(m=>m.rootId||m.asset.rootId||m.asset.id)).size;
+ const fragments=new Map(materials.map(m=>[m.asset.id,m])),assets=new Map(materials.map(m=>[m.asset.id,m.asset]));
+ // Every repair stays within the fragment's size range, area and sharpness caps.
+ const bounded=(layer,id)=>limitLayer(layer,fragments.get(id),canvas,{sizes});
  const quality=p=>{
   const m=measure(p),hidden=Object.keys(m.visible).reduce((n,id)=>n+Math.max(0,Math.min(COMPOSITION_LIMITS.minVisible,.4*m.footprints[id])-m.visible[id])*35+Math.max(0,COMPOSITION_LIMITS.minRetention-m.retention[id])*.65,0);
   return {m,score:m.coverage-hidden-(count-m.distinctVisible)*.4-Math.max(0,m.dominantShare-COMPOSITION_LIMITS.maxLayerArea)*5};
  };
  project.layers=project.layers.map(l=>{
-  const asset=assets.get(l.assetId);if(!asset)return l;
-  const next=bounded(l,asset);
-  if(next!==l)changes.push({layerId:l.id,fromWidth:l.width,toWidth:next.width,reason:'Limit each fragment to 58% of the canvas area; share the ground between crops.'});
+  if(!assets.get(l.assetId))return l;
+  const next=bounded(l,l.assetId);
+  if(next!==l)changes.push({layerId:l.id,fromWidth:l.width,toWidth:next.width,reason:'Keep each fragment within its size range and 58% of the canvas area.'});
   return next;
  });
  let current=quality(project);
  // Repair the director's layout, including fully covered canvases with hidden
  // sources. Prefer legibility to filling the last gap with one giant photograph.
- for(let pass=0;pass<7;pass++){
+ for(let pass=0;pass<(sizes?14:7);pass++){
   if(current.m.coverage>=.995&&!current.m.obscuredIds.length)break;
   let improved=false;
   for(let i=0;i<project.layers.length;i++){
    const layer=project.layers[i],asset=assets.get(layer.assetId);if(!asset)continue;
    let best=current,bestLayer=layer;
-   const candidates=[.82,.94,1.08,1.18].map(factor=>bounded(resized(layer,factor),asset));
-   for(const [dx,dy] of [[-100,0],[100,0],[0,-75],[0,75]])candidates.push({...layer,x:layer.x+dx,y:layer.y+dy});
+   // A large factor asks for the top of the fragment's size range; the limits clamp it.
+   const candidates=[.82,.94,1.08,1.18,4].map(factor=>bounded(resized(layer,factor),layer.assetId)),step=[canvas.width/16,canvas.height*.075];
+   for(const [dx,dy] of [[-step[0],0],[step[0],0],[0,-step[1]],[0,step[1]]])candidates.push(bounded({...layer,x:layer.x+dx,y:layer.y+dy},layer.assetId));
+   // Try carrying the fragment onto the widest uncovered band, as it is and at its largest.
+   const gap=current.m.gap;
+   if(gap)for(const base of [layer,bounded(resized(layer,4),layer.assetId)]){const rad=base.rotation*Math.PI/180,cx=base.x+(base.width*Math.cos(rad)-base.height*Math.sin(rad))/2,cy=base.y+(base.width*Math.sin(rad)+base.height*Math.cos(rad))/2;candidates.push(bounded({...base,x:base.x+gap.x-cx,y:base.y+gap.y-cy},layer.assetId));}
    for(const candidate of candidates){
     if(candidate.width<10||candidate.height<10)continue;
     const result=quality({...project,layers:project.layers.map((v,j)=>j===i?candidate:v)});
@@ -85,6 +92,6 @@ export async function fillComposition(store,project,materials){
   }
   if(!improved)break;
  }
- const finalMeasure=await coverageReader(store,materials);
+ const finalMeasure=await coverageReader(store,materials,{canvas});
  return {...finalMeasure(project),changes,limits:COMPOSITION_LIMITS};
 }

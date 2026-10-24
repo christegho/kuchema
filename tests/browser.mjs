@@ -105,6 +105,14 @@ try{
  const png=await pngPromise;await png.saveAs('test-results/export-test.png');const meta=await sharp('test-results/export-test.png').metadata();assert.equal(meta.width,2400);assert.equal(meta.height,1500);
  const corner=await sharp('test-results/export-test.png').extract({left:0,top:0,width:1,height:1}).removeAlpha().raw().toBuffer();
  assert.equal('#'+corner.toString('hex'),DEFAULT_GROUND,'Editor export must replace the old pale canvas ground');
+ // A panoramic project fills a 16:3 stage and exports at exactly 5760 × 1080 from the editor too.
+ store.state.project={...store.state.project,canvas:{width:5760,height:1080}};await page.reload();
+ const stage=await page.locator('.canvas-wrap canvas').first().boundingBox();assert.ok(Math.abs(stage.width/stage.height-16/3)<.05,`stage ${stage.width}×${stage.height}`);
+ const panoramaPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Save image ↓',exact:true}).click();
+ const panorama=await panoramaPromise;await panorama.saveAs('test-results/export-panorama.png');const pano=await sharp('test-results/export-panorama.png').metadata();
+ assert.deepEqual([pano.width,pano.height,pano.format],[5760,1080,'png']);
+ assert.equal('#'+(await sharp('test-results/export-panorama.png').extract({left:5759,top:1079,width:1,height:1}).removeAlpha().raw().toBuffer()).toString('hex'),'#000000');
+ {const {canvas,...legacy}=store.state.project;store.state.project=legacy;}
  await page.reload();await page.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('.layer-list button').first().click();
  assert.equal(await page.getByLabel('Name',{exact:true}).inputValue(),'A considered fragment');
  await page.getByRole('button',{name:'Done',exact:true}).click();
@@ -145,5 +153,5 @@ try{
  await mobile.screenshot({path:'test-results/treatment-options-mobile.png',fullPage:true});
  assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await mobile.screenshot({path:'test-results/installation-mobile.png',fullPage:true});
  await mobile.getByRole('navigation').getByRole('button',{name:/Archive/}).click();assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await mobile.screenshot({path:'test-results/archive-mobile.png',fullPage:true});
- assert.deepEqual(errors,[]);console.log('PASS archive upload/context, persistence, editing, polygon cuts, undo/redo, 2400px export, provenance, presentation, desktop/mobile and no runtime errors.');
+ assert.deepEqual(errors,[]);console.log('PASS archive upload/context, persistence, editing, polygon cuts, undo/redo, 2400px legacy and 5760 × 1080 panoramic export, provenance, presentation, desktop/mobile and no runtime errors.');
 }catch(e){const pages=browser.contexts().flatMap(c=>c.pages());if(pages[0])await pages[0].screenshot({path:'test-results/browser-failure.png',fullPage:true});throw e;}finally{await browser.close();await new Promise(resolve=>server.close(resolve));app.locals.pipeline.vision.close();await fs.rm(dir,{recursive:true,force:true});}

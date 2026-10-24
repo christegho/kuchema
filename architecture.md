@@ -45,7 +45,7 @@ flowchart TB
     direction LR
     TR["Treatments<br/>water, sediment, grain"]:::code
     FIT["Layout repair<br/>coverage optimiser"]:::code
-    REN["Renderer<br/>2400 × 1500 PNG"]:::code
+    REN["Renderer<br/>5760 × 1080 PNG on black"]:::code
   end
 
   ORCH -->|"once per image, retryable at no cost"| Y
@@ -131,7 +131,7 @@ flowchart TB
     K4["Collage critique<br/>Qwen3 VL 235B A22B<br/>sees the cut-out sheet and draft"]:::paid
     K5{"Revise?"}
     K6["Rebuild the layout and repair again"]
-    K7["Render final 2400 × 1500 PNG<br/>check permissions, save the cost ledger"]
+    K7["Render final 5760 × 1080 PNG on black<br/>check permissions, save the cost ledger"]
     K1 --> K2 --> K3 --> K4 --> K5
     K5 -- yes --> K6 --> K7
     K5 -- no --> K7

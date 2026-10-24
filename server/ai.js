@@ -72,9 +72,10 @@ export async function routerRequest(endpoint, body) {
   return result;
 }
 
-export async function referenceData(store, asset) {
+// size bounds the longest side; a panoramic draft needs more width than a photograph.
+export async function referenceData(store, asset, size = 1024) {
   const b = await sharp(await fs.readFile(path.join(store.root, 'media', `${asset.id}.png`)))
-    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 92 }).toBuffer();
+    .resize(size, size, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 92 }).toBuffer();
   return `data:image/jpeg;base64,${b.toString('base64')}`;
 }
 

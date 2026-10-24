@@ -10,8 +10,9 @@ export const metadataSchema = z.object({
 export const layerSchema = z.object({
   id: z.string().min(1).max(100), assetId: z.string().max(100).nullable(),
   name: z.string().max(200), kind: z.enum(['source', 'generated', 'gap']),
-  x: z.number().min(-3200).max(4800), y: z.number().min(-2000).max(3000),
-  width: z.number().min(10).max(4800), height: z.number().min(10).max(3000),
+  // Bounds cover the 5760 × 1080 panorama as well as legacy 1600 × 1000 projects.
+  x: z.number().min(-12000).max(18000), y: z.number().min(-4000).max(6000),
+  width: z.number().min(10).max(18000), height: z.number().min(10).max(6000),
   rotation: z.number().min(-360).max(360), opacity: z.number().min(0).max(1),
   shape: z.enum(['rectangle', 'torn', 'ellipse', 'polygon']),
   points: z.array(z.number().min(0).max(1)).max(160).default([]),
@@ -25,6 +26,8 @@ export const evidenceSchema = z.object({
 });
 export const projectSchema = z.object({
   title: z.string().max(160), brief: z.string().max(4000),
+  // Absent on projects composed on the legacy 1600 × 1000 canvas.
+  canvas: z.object({ width: z.number().int().min(100).max(20000), height: z.number().int().min(100).max(20000) }).optional(),
   strategy: z.enum(['atlas', 'echoes', 'gaps']), background: z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(canvasGround),
   layers: z.array(layerSchema).max(50), evidence: evidenceSchema.nullable(),
 }).refine(p => new Set(p.layers.map(l => l.id)).size === p.layers.length, { message: 'Each layer must have a unique ID.' });

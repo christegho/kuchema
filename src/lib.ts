@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Asset, Layer, Project } from './types';
 import {DEFAULT_GROUND} from '../shared/ground.js';
+import {CANVAS, LEGACY_CANVAS} from '../shared/canvas.js';
 
 export async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(url, { ...options, headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...options.headers } });
@@ -22,7 +23,13 @@ export function makeLayer(asset: Asset|null, index = 0): Layer {
     rotation: 0, opacity: 1, shape: 'rectangle', points: [], crop: {x:0,y:0,zoom:1}, visible: true, locked: false,
     note: asset ? '' : 'What cannot be supported by this archive?' };
 }
-export function arrange(assets: Asset[], strategy: Project['strategy']): Layer[] {
+// Preset layouts were drawn for 1600 × 1000; positions follow the canvas and sizes its height.
+export function arrange(assets: Asset[], strategy: Project['strategy'], canvas = CANVAS): Layer[] {
+  const sx = canvas.width / LEGACY_CANVAS.width, s = canvas.height / LEGACY_CANVAS.height;
+  const fit = (layer: Layer): Layer => ({...layer, x: layer.x * sx, y: layer.y * s, width: layer.width * s, height: layer.height * s});
+  return arrangeLegacy(assets, strategy).map(fit);
+}
+function arrangeLegacy(assets: Asset[], strategy: Project['strategy']): Layer[] {
   const picked = assets.slice(0,8);
   if (!picked.length) return [makeLayer(null)];
   if (strategy === 'echoes') return Array.from({length:Math.min(7,Math.max(picked.length,5))}, (_,i) => {
@@ -41,7 +48,7 @@ export function arrange(assets: Asset[], strategy: Project['strategy']): Layer[]
   return layers;
 }
 export function initialProject(assets: Asset[]): Project {
-  return { title:'A fragmentary atlas',brief:'Follow the water, the ground, and the spaces where people gather. Let different perspectives coexist. Leave room for what these images cannot tell us.',strategy:'atlas',background:DEFAULT_GROUND,layers:arrange(assets,'atlas'),evidence:null };
+  return { title:'A fragmentary atlas',brief:'Follow the water, the ground, and the spaces where people gather. Let different perspectives coexist. Leave room for what these images cannot tell us.',strategy:'atlas',canvas:{...CANVAS},background:DEFAULT_GROUND,layers:arrange(assets,'atlas'),evidence:null };
 }
 export function useHistory(initial: Project) {
   const [project, setProject] = useState(initial);

@@ -6,6 +6,7 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
 import {CreationPipeline,bounded,compositionWarnings,normalizedBox,selectGenerationReferences} from '../server/pipeline.js';
+import {sizeReport,sizeRange} from '../server/scale.js';
 import {normalizeObservations} from '../server/direction.js';
 import {creationInput,validateAdvance} from '../server/plan.js';
 import {createStore} from '../server/store.js';
@@ -100,7 +101,13 @@ for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, t
  const store=await fixture(t,mode==='archive'?6:5),calls=[],segments=[];
  const pipeline=new CreationPipeline(store,{prices,vision:{...fakeVision,request:async r=>{if(r.action==='segment'){segments.push(r);assert.ok(store.state.creations[0].plan);assert.equal(r.directed,true);}return fakeVision.request(r);}},request:requestDouble(store,{onBody:(e,b)=>calls.push({e,b})})});
  const job=await pipeline.start(input({includeArchive:mode!=='generated',contextText:'Contributor account: this water connects generations.'}));await pipeline.running;
- assert.equal(job.status,'complete',job.error);assert.equal(job.project.background,DEFAULT_GROUND);assert.equal(job.plan.background,DEFAULT_GROUND);assert.equal(job.finalLayout.background,DEFAULT_GROUND);assert.equal(job.coverage.distinctVisible,6);assert.ok(job.project.layers.every(l=>l.width*l.height<=1600000*.580001));assert.equal(new Set(job.materials.map(m=>m.rootId)).size,6);
+ assert.equal(job.status,'complete',job.error);assert.equal(job.project.background,DEFAULT_GROUND);assert.equal(job.plan.background,DEFAULT_GROUND);assert.equal(job.finalLayout.background,DEFAULT_GROUND);assert.equal(job.coverage.distinctVisible,6);assert.ok(job.project.layers.every(l=>l.width*l.height<=5760*1080*.580001));
+ // The panorama: 5760 × 1080 on black, every fragment inside its size range unless its source is too small.
+ assert.deepEqual(job.project.canvas,{width:5760,height:1080});assert.deepEqual(job.outputSize,[5760,1080]);
+ const materials=job.materials.map(m=>({...m,asset:store.state.assets.find(a=>a.id===m.assetId)})),report=sizeReport(job.project,materials,job.project.canvas);assert.deepEqual(report.above,[]);
+ for(const l of job.project.layers){const m=materials.find(m=>m.asset.id===l.assetId),{height:[min,max]}=sizeRange(m),upscaled=l.height>=m.asset.height*2-1e-6;assert.ok(l.height/1080<=max+1e-6&&(l.height/1080>=min-1e-6||upscaled),`${l.name} ${l.height}`);}
+ // Landscapes are requested panoramic, other generated material at 3:2.
+ for(const {b} of calls.filter(c=>c.e==='images'))assert.equal(b.aspect_ratio,/panoramic/.test(b.prompt)?'21:9':'3:2');assert.equal(new Set(job.materials.map(m=>m.rootId)).size,6);
  assert.equal(calls.filter(c=>c.e==='images').length,6);
  assert.equal(calls.filter(c=>c.e==='chat/completions').length,4);
  assert.ok(calls.find(c=>c.b.response_format?.json_schema?.name==='advance_collage_plan').b.messages[1].content.some(c=>c.type==='image_url'));
@@ -111,7 +118,7 @@ for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, t
   assert.ok(transformed.every(w=>job.materials.some(m=>store.state.assets.find(a=>a.id===m.assetId).derived?.parentId===w.assetId)));
  }
  if(mode==='generated')assert.ok(job.project.layers.every(l=>l.kind==='generated'));
- const meta=await sharp(path.join(store.root,'media',job.id+'.png')).metadata();assert.equal(meta.width,2400);assert.equal(meta.height,1500);
+ const meta=await sharp(path.join(store.root,'media',job.id+'.png')).metadata();assert.deepEqual([meta.width,meta.height,meta.format],[5760,1080,'png']);
  assert.equal((await pipeline.start({...input({}),requestId:job.requestId})).id,job.id);
 });
 test('non-people archive photographs are reference-only even when crop permission is enabled',async t=>{
@@ -506,14 +513,14 @@ test('a layout review that drops fragments keeps their draft placement instead o
 test('broken detail cuts in a paid plan are skipped and the collage is still made',async t=>{
  const store=await fixture(t);
  // D01 is too small (kept at the smallest width), D02 names no subject, D03 claims the wrong source image.
- const mutatePlan=plan=>{const d=Object.fromEntries(plan.details.map(x=>[x.key,x]));d.D01.placement.width=.02;d.D02.segment='';d.D03.sourceKey='F01';return plan;};
+ const mutatePlan=plan=>{const d=Object.fromEntries(plan.details.map(x=>[x.key,x]));d.D01.placement.width=.005;d.D02.segment='';d.D03.sourceKey='F01';return plan;};
  const pipeline=new CreationPipeline(store,{prices,vision:fakeVision,request:requestDouble(store,{mutatePlan})});
  const job=await pipeline.start(input());await pipeline.running;
  assert.equal(job.status,'complete',job.error);
- assert.deepEqual(job.plan.details.map(d=>d.key),['D01','D04','D05','D06']);assert.equal(job.plan.details[0].placement.width,.06);
+ assert.deepEqual(job.plan.details.map(d=>d.key),['D01','D04','D05','D06']);assert.equal(job.plan.details[0].placement.width,.02);
  assert.deepEqual(job.planRepairs.skipped.map(s=>s.key),['D02','D03']);
  assert.equal(job.materials.some(m=>['D02','D03'].includes(m.key)),false);assert.equal(job.project.layers.length,10);
- assert.ok(job.warnings.some(w=>/^Planning: detail D02 was skipped/.test(w)));assert.ok(job.warnings.some(w=>/^Planning: 1 out-of-range value was adjusted/.test(w)));
+ assert.ok(job.warnings.some(w=>/^Planning: detail D02 was skipped/.test(w)));assert.ok(job.warnings.some(w=>/^Planning: \d+ out-of-range values? (was|were) adjusted/.test(w)));assert.ok(job.planRepairs.repairs.some(r=>/D01\.placement\.width 0\.005 → 0\.02/.test(r)));
 });
 
 test('an unusable layout review keeps the draft collage',async t=>{

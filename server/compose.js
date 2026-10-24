@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {canvasGround} from '../shared/ground.js';
+import {CANVAS,LEGACY_CANVAS,canvasOf,outputScale} from '../shared/canvas.js';
+import {MAX_WORK_UPSCALE,limitLayer} from './scale.js';
 
 const HUMAN_TERMS=/\b(person|people|woman|women|man|men|child|children|figure|figures|group|gathering|crowd|family|families|youth|portrait)\b/i;
 export const archiveHasPeople=asset=>HUMAN_TERMS.test([asset.title,asset.caption,asset.aiCaption,asset.tags].filter(Boolean).join(' '));
-export const MAX_WORK_UPSCALE=2;
+export {MAX_WORK_UPSCALE};
 
 export function retrieveArchive(assets,prompt,ids=[]){
   const terms=prompt.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)||[];
@@ -16,26 +18,29 @@ export function retrieveArchive(assets,prompt,ids=[]){
   }).sort((a,b)=>b.score-a.score).slice(0,20);
 }
 
-// Layout coordinates are authored by the visual director, then bounded mechanically.
-export function assemble(plan,materials,prompt,layout){
+// Layout coordinates are authored by the visual director, then bounded mechanically:
+// every fragment is brought within its size range, and people stay inside the frame.
+export function assemble(plan,materials,prompt,layout,canvas=CANVAS){
   if(!layout)throw new Error('A model-authored layout is required.');
+  const W=canvas.width,H=canvas.height,sizes=canvas!==LEGACY_CANVAS;
   const layers=layout.layers.map(item=>{
     const m=materials.find(m=>m.key===item.assetId||m.asset.id===item.assetId);
     if(!m)throw new Error('The composition names an unknown fragment.');
-    const a=m.asset,scale=Math.min(item.width*1600/a.width,3000/a.height,MAX_WORK_UPSCALE);
+    const a=m.asset,scale=Math.min(item.width*W/a.width,3*H/a.height,MAX_WORK_UPSCALE);
     let width=Math.max(10,a.width*scale),height=Math.max(10,a.height*scale);
     const angle=item.rotation*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle);
-    let x=item.x*1600-(width*cos-height*sin)/2,y=item.y*1000-(width*sin+height*cos)/2;
+    let x=item.x*W-(width*cos-height*sin)/2,y=item.y*H-(width*sin+height*cos)/2;
     // A no-crop source must stay completely inside the frame, including its rotated corners.
     if(!a.allowCrop){
-      const fit=Math.min(1,1600/(width*Math.abs(cos)+height*Math.abs(sin)),1000/(width*Math.abs(sin)+height*Math.abs(cos)));width*=fit;height*=fit;
+      const fit=Math.min(1,W/(width*Math.abs(cos)+height*Math.abs(sin)),H/(width*Math.abs(sin)+height*Math.abs(cos)));width*=fit;height*=fit;
       const xs=[0,width*cos,-height*sin,width*cos-height*sin],ys=[0,width*sin,height*cos,width*sin+height*cos];
-      x=Math.max(-Math.min(...xs),Math.min(1600-Math.max(...xs),x));y=Math.max(-Math.min(...ys),Math.min(1000-Math.max(...ys),y));
+      x=Math.max(-Math.min(...xs),Math.min(W-Math.max(...xs),x));y=Math.max(-Math.min(...ys),Math.min(H-Math.max(...ys),y));
     }
+    const placed=limitLayer({x,y,width,height,rotation:item.rotation},m,canvas,{sizes});({x,y,width,height}=placed);
     return {id:randomUUID(),assetId:a.id,name:item.name,kind:a.kind,x,y,width,height,rotation:item.rotation,opacity:item.opacity,shape:'rectangle',points:[],crop:{x:0,y:0,zoom:1},visible:true,locked:false,note:item.reason};
   });
   if(materials.some(m=>m.asset.derived)&&!layers.some(l=>materials.some(m=>m.asset.id===l.assetId&&m.asset.derived)))throw new Error('The layout omitted every segmented fragment.');
-  return {title:plan.title,brief:prompt,strategy:'atlas',background:canvasGround(layout.background),layers,evidence:{supported:plan.supported||[],uncertain:plan.uncertain||[],rules:[layout.rationale,...(plan.rules||[])]}};
+  return {title:plan.title,brief:prompt,strategy:'atlas',...(sizes?{canvas:{...canvas}}:{}),background:canvasGround(layout.background),layers,evidence:{supported:plan.supported||[],uncertain:plan.uncertain||[],rules:[layout.rationale,...(plan.rules||[])]}};
 }
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -55,7 +60,7 @@ export async function materialSheet(store,materials,id){
 }
 
 export async function renderCollage(store,project,id){
-  const factor=1.5,canvasW=2400,canvasH=1500,overlays=[];
+  const canvas=canvasOf(project),factor=outputScale(project),canvasW=Math.round(canvas.width*factor),canvasH=Math.round(canvas.height*factor),overlays=[];
   for(const l of project.layers.filter(l=>l.visible&&l.assetId)){
     const w=Math.max(1,Math.round(l.width*factor)),h=Math.max(1,Math.round(l.height*factor));
     let image=sharp(path.join(store.root,'media',`${l.assetId}.png`)).resize(w,h,{fit:'fill'}).ensureAlpha();

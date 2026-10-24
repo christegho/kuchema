@@ -146,12 +146,12 @@ test('a paid plan is repaired: out-of-range numbers clamp, invalid details are s
  const job={...creationInput.parse({prompt:'Water and collective memory',requestId:'af4bbf1a-a20a-4622-8b71-290d6b4b3997'}),detailAssignments:detailAssignments(6,3)};
  const schema=advanceFor([{id:'p1'},{id:'p2'},{id:'p3'}],job,3);
  const detail=(key,sourceKey,extra={})=>({key,sourceKey,label:'Detail',segment:'A closer texture of the stone',boundary:'silhouette',tier:'small',edge:'clean',placement:{x:.5,y:.5,width:.12,rotation:0},reason:'An echo',...extra});
- const raw={images:{F01:{placement:{x:1.2,y:.5,width:.05,rotation:50}},F04:{transform:{type:'water-flow',strength:.3},placement:{x:.5,y:.5,width:.5,rotation:0}}},
-  details:{D01:detail('D01','F04',{placement:{x:.5,y:.5,width:.02,rotation:0}}),D02:detail('D02','F05',{segment:''}),D03:detail('D03','F04'),D09:detail('D09','F04')},layerOrder:['D01','F04','F04','unknown']};
+ const raw={images:{F01:{placement:{x:1.2,y:.5,width:.9,rotation:50}},F04:{transform:{type:'water-flow',strength:.3},placement:{x:.5,y:.5,width:.5,rotation:0}}},
+  details:{D01:detail('D01','F04',{placement:{x:.5,y:.5,width:.01,rotation:0}}),D02:detail('D02','F05',{segment:''}),D03:detail('D03','F04'),D09:detail('D09','F04')},layerOrder:['D01','F04','F04','unknown']};
  const {raw:fixed,notes,skipped}=repairPlan(raw,schema);
- assert.deepEqual(fixed.images.F01.placement,{x:1,y:.5,width:.1,rotation:35});assert.equal(fixed.images.F04.transform.strength,.5);
+ assert.deepEqual(fixed.images.F01.placement,{x:1,y:.5,width:.6,rotation:35});assert.equal(fixed.images.F04.transform.strength,.5);
  // A detail that is merely too small is kept at the smallest planned width.
- assert.equal(fixed.details.D01.placement.width,.06);assert.deepEqual(Object.keys(fixed.details),['D01']);
+ assert.equal(fixed.details.D01.placement.width,.02);assert.deepEqual(Object.keys(fixed.details),['D01']);
  // Missing subject, wrong source image, and a slot that was never planned are skipped.
  assert.deepEqual(skipped.map(s=>s.key),['D02','D03','D09']);assert.match(skipped[0].reason,/segment/);assert.match(skipped[2].reason,/not a planned detail slot/);
  assert.deepEqual(fixed.layerOrder,['D01','F04','F01']);assert.ok(notes.some(n=>/layerOrder completed/.test(n)));assert.equal(notes.filter(n=>/→/.test(n)).length,5);
