@@ -108,3 +108,14 @@ test('research archive exposes documents and originals without allowing arbitrar
  await request(app).get('/api/research/unknown/file').expect(404);
  await request(app).get('/api/research/%2e%2e%2f.env/file').expect(404);
 });
+
+test('editor exports are re-encoded as lossless RGB PNG masters of at least 15 MB',async t=>{
+  const {app}=await fixture(t),raw=Buffer.alloc(5760*1080*4);
+  for(let i=0;i<raw.length;i+=4){raw[i]=(i>>4)&255;raw[i+1]=(i>>9)&255;raw[i+2]=(i>>13)&255;raw[i+3]=255;}
+  const png=await sharp(raw,{raw:{width:5760,height:1080,channels:4}}).png({compressionLevel:9}).toBuffer();
+  const res=await request(app).post('/api/png').set('Content-Type','image/png').send(png).buffer(true).parse((r,cb)=>{const chunks=[];r.on('data',c=>chunks.push(c));r.on('end',()=>cb(null,Buffer.concat(chunks)));}).expect(200);
+  assert.equal(res.headers['content-type'],'image/png');assert.ok(res.body.length>=15e6);
+  const meta=await sharp(res.body).metadata();assert.deepEqual([meta.width,meta.height,meta.channels],[5760,1080,3]);
+  assert.deepEqual(await sharp(res.body).raw().toBuffer(),await sharp(png).removeAlpha().raw().toBuffer());
+  await request(app).post('/api/png').set('Content-Type','image/png').send(Buffer.from('not an image')).expect(400);
+});

@@ -59,7 +59,11 @@ export async function materialSheet(store,materials,id){
   return {url:`/media/${id}.png`,data:`data:image/jpeg;base64,${bytes.toString('base64')}`};
 }
 
-export async function renderCollage(store,project,id){
+// PNG is lossless, so file size never changes quality. The master is stored as RGB without
+// deflate compression: identical pixels, and at 5760 × 1080 always 18.7 MB (the brief asks for ≥15 MB).
+export const MASTER_PNG={compressionLevel:0};
+export const previewUrlOf=url=>url.replace(/\.png$/,'-preview.jpg');
+export async function renderCollage(store,project,id,{master=false}={}){
   const canvas=canvasOf(project),factor=outputScale(project),canvasW=Math.round(canvas.width*factor),canvasH=Math.round(canvas.height*factor),overlays=[];
   for(const l of project.layers.filter(l=>l.visible&&l.assetId)){
     const w=Math.max(1,Math.round(l.width*factor)),h=Math.max(1,Math.round(l.height*factor));
@@ -75,6 +79,9 @@ export async function renderCollage(store,project,id){
     overlays.push({input,left:x,top:y});
   }
   const output=path.join(store.root,'media',`${id}.png`);
-  await sharp({create:{width:canvasW,height:canvasH,channels:4,background:canvasGround(project.background)}}).composite(overlays).png().toFile(output);
+  const composed=sharp(await sharp({create:{width:canvasW,height:canvasH,channels:4,background:canvasGround(project.background)}}).composite(overlays).png({compressionLevel:1}).toBuffer());
+  await (master?composed.removeAlpha().png(MASTER_PNG):composed.png()).toFile(output);
+  // A lighter copy for on-screen previews and study thumbnails; downloads use the master.
+  if(master)await sharp(output).resize(2880,null,{withoutEnlargement:true}).jpeg({quality:90}).toFile(path.join(store.root,'media',`${id}-preview.jpg`));
   return `/media/${id}.png`;
 }

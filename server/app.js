@@ -2,6 +2,9 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import { z } from 'zod';
+import sharp from 'sharp';
+import {MASTER_PNG} from './compose.js';
+import {DEFAULT_GROUND} from '../shared/ground.js';
 import { metadataSchema, projectSchema, validateLayerPermissions } from './schema.js';
 import {TRANSFORM_OPTIONS,DEFAULT_TRANSFORMS} from './transforms.js';
 import { imageModels } from './ai.js';
@@ -49,9 +52,16 @@ export function createApp(store, options = {}) {
     res.type(document.format==='pdf'?'application/pdf':'text/plain').sendFile(path.resolve(document.relativePath));
   });
   app.get('/media/:filename', (req, res) => {
-    if (!/^[a-f0-9-]{36}\.(png|thumb\.webp)$/.test(req.params.filename)) return res.sendStatus(404);
+    if (!/^[a-f0-9-]{36}(\.png|\.thumb\.webp|-preview\.jpg)$/.test(req.params.filename)) return res.sendStatus(404);
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.sendFile(path.join(store.root, 'media', req.params.filename));
+  });
+  // Editor exports are re-encoded like the studio's masters: lossless RGB without compression.
+  app.post('/api/png', express.raw({ type: 'image/png', limit: '40mb' }), async (req, res) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || (await sharp(req.body).metadata()).format !== 'png') return res.status(400).json({ error: 'Send a PNG image.' });
+      res.type('png').send(await sharp(req.body).flatten({ background: DEFAULT_GROUND }).removeAlpha().png(MASTER_PNG).toBuffer());
+    } catch { res.status(400).json({ error: 'Send a PNG image.' }); }
   });
   app.post('/api/archive/upload', upload.array('images', 30), async (req, res) => {
     if (!req.files?.length) return res.status(400).json({ error: 'Choose one or more image files.' });

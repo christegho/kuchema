@@ -41,7 +41,7 @@ op('kuchema_api').request(
     header={'Content-Type': 'application/json'},
     data=json.dumps({
         'prompt': 'Water connects land, plants and collective life.',
-        'count': 6,
+        'count': 15,
         'researchCount': 4,  # 3–6 local research passages
         'researchIds': [],  # Empty selects from the whole research archive
         'includePeople': True,
@@ -53,7 +53,7 @@ op('kuchema_api').request(
 
 Research passages guide at least two generated fragments and the composition. `researchCount` (3–6) defaults to 4; `researchIds` optionally restricts the eligible pool using IDs returned by `/api/studio`. The job retains `researchDocuments`, `researchAssignments` and `researchCoverage` for attribution.
 
-This uses the official archive and its random category-selection rules. `count` can be 6–20 and defaults to 10. People come from direct archive cutouts; generated components contain environmental material. `enabledTransforms` lists permitted treatments, not effects that must all be used. Pass `[]` to disable all treatments. Omit it to use the gentle server defaults. Browser checkbox preferences are local to the browser, so send your preferred list explicitly from TouchDesigner.
+This uses the official archive and its random category-selection rules. `count` defaults to 15 (the studio offers 15–20 so material reaches all three screens; the API accepts 6–20). People come from direct archive cutouts; generated components contain environmental material. `enabledTransforms` lists permitted treatments, not effects that must all be used. Pass `[]` to disable all treatments. Omit it to use the gentle server defaults. Browser checkbox preferences are local to the browser, so send your preferred list explicitly from TouchDesigner.
 
 In the Web Client DAT's response callback, parse the response body with `json.loads(data)` and retain the returned job's `id`. A successful submission returns HTTP `202`. Handle non-success responses by displaying their `error` field.
 
@@ -106,7 +106,7 @@ This snippet is callback-body code, not a complete callback definition. Use the 
 
 Movie File In TOP supports loading images through HTTP. See the [Movie File In TOP documentation](https://docs.derivative.ca/Movie_File_In_TOP).
 
-The generated collage is a 5760 × 1080 PNG (16:3), one image spanning three 1920 × 1080 outputs; split it into three 1920-pixel-wide crops for the screens. Studies made before the panorama are 2400 × 1500. Connect the TOP to your effects and projection network. For smooth transitions, keep the previous image in a second TOP and crossfade after the new image has loaded.
+The generated collage (`outputUrl`) is a 5760 × 1080 PNG (16:3), a lossless 18.7 MB master spanning three 1920 × 1080 outputs; split it into three 1920-pixel-wide crops for the screens. Studies made before the panorama are 2400 × 1500. Connect the TOP to your effects and projection network. For smooth transitions, keep the previous image in a second TOP and crossfade after the new image has loaded.
 
 ## 5. Animate individual fragments
 

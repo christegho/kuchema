@@ -48,8 +48,8 @@ try{
  assert.equal(await page.getByLabel('Reflection echoes',{exact:true}).isDisabled(),true);
  await page.getByLabel('Use material treatments',{exact:true}).check();
  await page.screenshot({path:'test-results/treatment-options-desktop.png',fullPage:true});
- assert.deepEqual(await page.getByLabel('Images',{exact:true}).locator('option').evaluateAll(xs=>xs.map(x=>x.value)),Array.from({length:15},(_,i)=>String(i+6)));
- await page.getByLabel('Images',{exact:true}).selectOption('20');await page.getByLabel('Images',{exact:true}).selectOption('6');
+ assert.deepEqual(await page.getByLabel('Images',{exact:true}).locator('option').evaluateAll(xs=>xs.map(x=>x.value)),Array.from({length:6},(_,i)=>String(i+15)));
+ await page.getByLabel('Images',{exact:true}).selectOption('20');await page.getByLabel('Images',{exact:true}).selectOption('15');
  await page.getByLabel('Include archive in collage',{exact:true}).uncheck();
  await page.getByLabel('Use permitted generation references',{exact:true}).check();
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
@@ -110,8 +110,8 @@ try{
  const stage=await page.locator('.canvas-wrap canvas').first().boundingBox();assert.ok(Math.abs(stage.width/stage.height-16/3)<.05,`stage ${stage.width}×${stage.height}`);
  const panoramaPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Save image ↓',exact:true}).click();
  const panorama=await panoramaPromise;await panorama.saveAs('test-results/export-panorama.png');const pano=await sharp('test-results/export-panorama.png').metadata();
- assert.deepEqual([pano.width,pano.height,pano.format],[5760,1080,'png']);
- assert.equal('#'+(await sharp('test-results/export-panorama.png').extract({left:5759,top:1079,width:1,height:1}).removeAlpha().raw().toBuffer()).toString('hex'),'#000000');
+ assert.deepEqual([pano.width,pano.height,pano.format],[5760,1080,'png']);assert.ok((await fs.stat('test-results/export-panorama.png')).size>=15e6,'Editor exports are lossless masters of at least 15 MB');
+ assert.equal('#'+(await sharp('test-results/export-panorama.png').extract({left:5759,top:1079,width:1,height:1}).removeAlpha().raw().toBuffer()).toString('hex'),DEFAULT_GROUND);
  {const {canvas,...legacy}=store.state.project;store.state.project=legacy;}
  await page.reload();await page.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('.layer-list button').first().click();
  assert.equal(await page.getByLabel('Name',{exact:true}).inputValue(),'A considered fragment');
@@ -136,7 +136,7 @@ try{
  await page.getByRole('button',{name:'Options ⌄',exact:true}).click();
  await page.route('**/api/creations',async route=>{
   assert.deepEqual(route.request().postDataJSON().ids,[],'The default must sample the full archive, including new images and regardless of browsing.');
-  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,10);assert.equal(body.researchCount,6);assert.equal(body.tornEdges,true);assert.deepEqual(body.researchIds,[]);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
+  assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();assert.equal(body.count,15);assert.equal(body.researchCount,6);assert.equal(body.tornEdges,true);assert.deepEqual(body.researchIds,[]);assert.equal(body.includeArchive,false);assert.equal(body.includePeople,false);assert.equal(body.useReferences,true);assert.equal(body.recolouring,true);assert.equal(body.enabledTransforms.includes('water-flow'),false);assert.equal(body.enabledTransforms.includes('reflection-echo'),true);assert.match(body.contextText,/contributor account/);assert.match(body.systemPrompt,/Kuchema: The Gathering/);assert.equal(body.generation,'needed');assert.ok(body.requestId);
   const job={id:randomUUID(),requestId:body.requestId,prompt:body.prompt,status:'running',stage:'Reading a test archive',progress:10,createdAt:new Date().toISOString(),ledger:[],assetIds:[],warnings:[],maxCost:1};
   store.state.creations.push(job);await route.fulfill({status:202,contentType:'application/json',body:JSON.stringify(job)});
   setTimeout(()=>{job.project={...store.state.project,title:'A completed test creation'};job.status='complete';job.progress=100;store.state.project=job.project;},1800);

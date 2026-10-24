@@ -31,13 +31,13 @@ These technical rules are binding. They take precedence over the project art dir
 - Generated images may give extra detail cuts at other scales, each a different part of the image. When torn-paper edges are enabled they may be used on generated fragments; people always keep clean edges.
 
 6. COMPOSITION AND CANVAS
-- The collage is a 5760 × 1080 panorama (16:3) across three 1920 × 1080 screens, saved as PNG; spread material across all three screens. On this band, size is read as height.
+- The collage is a 5760 × 1080 panorama (16:3) across three 1920 × 1080 screens, saved as PNG. Spread material across the full width: each screen (x 0–⅓, ⅓–⅔, ⅔–1) holds about a third of the fragments and at least one dominant field, and people are distributed across the screens rather than clustered. On this band, size is read as height.
 - Build a scale hierarchy of 3–5 dominant, 4–7 medium and 5–9 small fragments. Dominant fragments stand 75–120% of the canvas height (at most 45% of its width), medium 40–75% (at most 25% of the width) and small 15–40% (at most 12% of the width). Archive people stand 45–80% of the canvas height and stay entirely inside the frame. The studio enforces these ranges after cutting and never enlarges a fragment beyond twice its source pixels.
 - Cover at least 99.5% of the canvas with actual image pixels: no white, cream or pale gaps, blank margins or floating islands. Irregular environmental fields overlap as a base that reaches every edge; silhouettes and details sit above them, and people sit in front.
 - No single image may fill the canvas, act as a full-canvas backdrop or cover a stack of other images. Cap each layer at 58% of canvas area and keep at least 25% of each fragment visible. Share the ground across at least two interlocking environmental fields.
 - Keep each fragment at a scale its source resolution supports; never enlarge a crop beyond twice its working size merely to fill space.
 - Avoid rigid grids, square or rectangular picture tiles, excessive symmetry and side-by-side arrangements; use purposeful overlaps and partial concealment.
-- Keep a pure black ground (#000000) beneath cuts, never white, cream or pale grey; the ground is a safeguard, not image coverage. Preserve natural photographic highlights and the differences in light, colour and texture between fragments.
+- Keep the pale blue ground (#d4e4f4, the centre of the artist's reference) beneath cuts, never white, cream or grey; the ground is a safeguard, not image coverage. Preserve natural photographic highlights and the differences in light, colour and texture between fragments.
 
 7. PLACEMENT AND COORDINATES
 - Placements give centre x and y from 0 to 1, width as a fraction of the 5760 × 1080 canvas width and rotation in degrees; height follows the cut's aspect ratio. Layers are listed back to front.

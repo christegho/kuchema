@@ -119,6 +119,11 @@ for(const mode of ['archive','mixed','generated'])test(`${mode}: advance plan, t
  }
  if(mode==='generated')assert.ok(job.project.layers.every(l=>l.kind==='generated'));
  const meta=await sharp(path.join(store.root,'media',job.id+'.png')).metadata();assert.deepEqual([meta.width,meta.height,meta.format],[5760,1080,'png']);
+ // The master PNG is at least 15 MB; previews use a lighter JPEG; each of the three screens is reported.
+ assert.equal(job.outputUrl,`/media/${job.id}.png`);assert.ok((await fs.stat(path.join(store.root,'media',job.id+'.png'))).size>=15e6);
+ assert.equal(job.previewUrl,`/media/${job.id}-preview.jpg`);assert.equal((await sharp(path.join(store.root,'media',`${job.id}-preview.jpg`)).metadata()).format,'jpeg');
+ assert.deepEqual(job.screens.map(s=>s.screen),[1,2,3]);assert.equal(job.screens.reduce((n,s)=>n+s.fragments,0),job.project.layers.length);
+ assert.equal(creationInput.parse({prompt:'Water and collective memory',requestId:randomUUID()}).count,15);
  assert.equal((await pipeline.start({...input({}),requestId:job.requestId})).id,job.id);
 });
 test('non-people archive photographs are reference-only even when crop permission is enabled',async t=>{
@@ -450,7 +455,7 @@ test('unreadable Parasail response switches to DeepInfra and completes the ten-i
   return Response.json(await base(endpoint,body));
  });
  const pipeline=new CreationPipeline(store,{prices:fallbackPrices,vision:fakeVision,request:routerRequest});
- const job=await pipeline.start(input({count:undefined}));await pipeline.running;
+ const job=await pipeline.start(input({count:10}));await pipeline.running;
  assert.equal(job.status,'complete',job.error);assert.equal(job.count,10);
  assert.deepEqual(planning.map(b=>b.provider.only[0]),['parasail/fp8','deepinfra/fp8']);
  assert.deepEqual(planning[0].messages,planning[1].messages);

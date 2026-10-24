@@ -58,3 +58,15 @@ export function sizeReport(project,materials,canvas){
  }
  return {below,above};
 }
+
+/** How fragments, people and coverage divide across the three screens of the panorama. */
+export function screenBalance(project,materials,coverage){
+ const canvas=project.canvas,screens=[0,1,2].map(i=>({screen:i+1,fragments:0,people:0,coverage:coverage?.screens?.[i]??null}));
+ if(!canvas)return [];
+ for(const layer of project.layers){
+  const m=materials.find(m=>m.asset.id===layer.assetId);if(!m||!layer.visible)continue;
+  const {xs}=corners(layer),centre=(Math.min(...xs)+Math.max(...xs))/2,screen=screens[Math.min(2,Math.max(0,Math.floor(centre/canvas.width*3)))];
+  screen.fragments++;if(sizeClass(m)==='people')screen.people++;
+ }
+ return screens;
+}

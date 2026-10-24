@@ -31,6 +31,8 @@ export async function coverageReader(store,materials,{canvas=LEGACY_CANVAS,cells
    footprints[m.key]=(footprints[m.key]||0)+footprint/N;
   }
   let filled=0;for(const r of remaining)if(r<.1)filled++;
+  // Coverage of each of the three screens the panorama spans.
+  const screens=[0,1,2].map(i=>{const from=Math.floor(i*W/3),to=Math.floor((i+1)*W/3);let n=0;for(let y=0;y<H;y++)for(let x=from;x<to;x++)if(remaining[y*W+x]<.1)n++;return n/((to-from)*H);});
   // The widest uncovered band (a window of columns), so repair can move material onto it.
   const open=new Float32Array(W),span=Math.max(1,Math.round(W/12));let rows=0,count=0;
   for(let x=0;x<W;x++)for(let y=0;y<H;y++)if(remaining[y*W+x]>=.1)open[x]++;
@@ -40,7 +42,7 @@ export async function coverageReader(store,materials,{canvas=LEGACY_CANVAS,cells
   const retention=Object.fromEntries(Object.keys(visible).map(id=>[id,footprints[id]?visible[id]/footprints[id]:0]));
   // A small detail is not obscured just for being small: compare it with its own footprint.
   const obscuredIds=Object.keys(visible).filter(id=>retention[id]<COMPOSITION_LIMITS.minRetention||visible[id]<Math.min(COMPOSITION_LIMITS.minVisible,.4*footprints[id]));
-  return {keyedBy:'fragment',coverage:filled/N,gap,visible,footprints,retention,obscuredIds,rootVisible,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(rootVisible).filter(n=>n>=.002).length};
+  return {keyedBy:'fragment',coverage:filled/N,screens,gap,visible,footprints,retention,obscuredIds,rootVisible,dominantShare:Math.max(0,...Object.values(visible)),distinctVisible:Object.values(rootVisible).filter(n=>n>=.002).length};
  };
 }
 
@@ -49,9 +51,16 @@ export async function fillComposition(store,project,materials){
  const fragments=new Map(materials.map(m=>[m.asset.id,m])),assets=new Map(materials.map(m=>[m.asset.id,m.asset]));
  // Every repair stays within the fragment's size range, area and sharpness caps.
  const bounded=(layer,id)=>limitLayer(layer,fragments.get(id),canvas,{sizes});
+ // How fragments and people divide across the three screens, by layer centre.
+ const centre=l=>{const rad=l.rotation*Math.PI/180;return {x:l.x+(l.width*Math.cos(rad)-l.height*Math.sin(rad))/2,y:l.y+(l.width*Math.sin(rad)+l.height*Math.cos(rad))/2};};
+ const isPerson=l=>fragments.get(l.assetId)?.asset.kind==='source';
+ const spread=layers=>{const all=[0,0,0],people=[0,0,0];for(const l of layers){if(!fragments.get(l.assetId))continue;const i=Math.min(2,Math.max(0,Math.floor(centre(l).x/canvas.width*3)));all[i]++;if(isPerson(l))people[i]++;}return {all,people};};
+ const imbalance=counts=>{const total=counts.reduce((a,b)=>a+b,0);return total<3?0:(Math.max(...counts)-Math.min(...counts))/total;};
  const quality=p=>{
   const m=measure(p),hidden=Object.keys(m.visible).reduce((n,id)=>n+Math.max(0,Math.min(COMPOSITION_LIMITS.minVisible,.4*m.footprints[id])-m.visible[id])*35+Math.max(0,COMPOSITION_LIMITS.minRetention-m.retention[id])*.65,0);
-  return {m,score:m.coverage-hidden-(count-m.distinctVisible)*.4-Math.max(0,m.dominantShare-COMPOSITION_LIMITS.maxLayerArea)*5};
+  // On the panorama the least covered screen also counts, so repair fills the emptiest screen first.
+  const {all,people}=spread(p.layers);
+  return {m,score:m.coverage+(sizes?.3*Math.min(...m.screens)-.15*(imbalance(all)+imbalance(people)):0)-hidden-(count-m.distinctVisible)*.4-Math.max(0,m.dominantShare-COMPOSITION_LIMITS.maxLayerArea)*5};
  };
  project.layers=project.layers.map(l=>{
   if(!assets.get(l.assetId))return l;
@@ -71,6 +80,8 @@ export async function fillComposition(store,project,materials){
    // A large factor asks for the top of the fragment's size range; the limits clamp it.
    const candidates=[.82,.94,1.08,1.18,4].map(factor=>bounded(resized(layer,factor),layer.assetId)),step=[canvas.width/16,canvas.height*.075];
    for(const [dx,dy] of [[-step[0],0],[step[0],0],[0,-step[1]],[0,step[1]]])candidates.push(bounded({...layer,x:layer.x+dx,y:layer.y+dy},layer.assetId));
+   // On the panorama, try moving the fragment to the screen that holds the fewest of its kind.
+   if(sizes){const counts=spread(project.layers)[isPerson(layer)?'people':'all'],target=counts.indexOf(Math.min(...counts)),{x}=centre(layer);candidates.push(bounded({...layer,x:layer.x+(target+.5)*canvas.width/3-x},layer.assetId));}
    // Try carrying the fragment onto the widest uncovered band, as it is and at its largest.
    const gap=current.m.gap;
    if(gap)for(const base of [layer,bounded(resized(layer,4),layer.assetId)]){const rad=base.rotation*Math.PI/180,cx=base.x+(base.width*Math.cos(rad)-base.height*Math.sin(rad))/2,cy=base.y+(base.width*Math.sin(rad)+base.height*Math.cos(rad))/2;candidates.push(bounded({...base,x:base.x+gap.x-cx,y:base.y+gap.y-cy},layer.assetId));}

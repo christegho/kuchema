@@ -98,3 +98,11 @@ Plan: ~/.claude/plans/fancy-hugging-mochi.md
 - [x] Tests; real-material re-render of 8fac6063; boot check then stop
 - [x] All of the above. npm test 119/119, build, browser (incl. 5760 × 1080 editor export).
 - Real-material check: study 8fac6063 re-composed on the panorama: 5760 × 1080 PNG, black, people 42–80% of height inside the frame (one held at 42% by its small source, reported), coverage 58% → 88% after field-size and gap-filling repair (old plan had one dominant field; new plans ask for 3–5 panoramic fields).
+
+# Pale blue ground, ≥15 MB PNG masters, 15 images across three screens
+
+- [x] Ground #d4e4f4 (mean of paleblue.jpeg's central 2%) everywhere; prompts updated (incl. one sentence of the artist's §D)
+- [x] Master PNG: RGB, no deflate → 18.7 MB at 5760 × 1080 (lossless); 2880-px JPEG preview for UI; `POST /api/png` re-encodes editor exports
+- [x] Studio offers 15–20 images (default 15 → 21 fragments); API keeps 6–20
+- [x] Screens: per-screen coverage in measurement; repair rewards the emptiest screen and balances fragments/people across screens; `job.screens` + warnings
+- [x] npm test 120/120, build, browser. Real-material check (8fac6063): 18.7 MB master, corner #d4e4f4, fragments 5/5/6 and people 1/1/2 per screen (was 4/7/5 and 0/4/0)
