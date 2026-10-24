@@ -7,8 +7,9 @@ import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
 import {CreationPipeline,bounded,compositionWarnings,normalizedBox,selectGenerationReferences} from '../server/pipeline.js';
 import {sizeReport,sizeRange} from '../server/scale.js';
-import {normalizeObservations} from '../server/direction.js';
-import {creationInput,validateAdvance} from '../server/plan.js';
+import {layoutSchema,normalizeObservations} from '../server/direction.js';
+import {advanceSchema,creationInput,validateAdvance} from '../server/plan.js';
+import {projectSchema} from '../server/schema.js';
 import {createStore} from '../server/store.js';
 import {archiveHasPeople,assemble,retrieveArchive} from '../server/compose.js';
 import {coverageReader} from '../server/coverage.js';
@@ -249,6 +250,16 @@ test('alpha coverage detects holes and complete occlusion instead of counting bo
  const a=await store.addImage(bytes,'thin.png'),m=[{key:'F01',asset:a,rootId:a.id}],measure=await coverageReader(store,m);
  const p=assemble({title:'Test'},m,'test',{background:'#fff',layers:[{assetId:'F01',name:'Thin cut',x:.5,y:.5,width:1,rotation:0,opacity:1,reason:''}]});
  assert.ok(measure(p).coverage<.12);
+});
+test('the longest text any model may return still fits the saved project',()=>{
+ // Lengths come from the model schemas themselves, so raising a producer limit fails here first.
+ const max=s=>s._zod.bag.maximum,fill=s=>'x'.repeat(max(s)),list=s=>Array.from({length:max(s)},()=>fill(s.element));
+ const plan=advanceSchema.shape,image=plan.images.element.shape,layout=layoutSchema.shape,layer=layout.layers.element.shape;
+ const full={title:fill(plan.title),rationale:fill(plan.rationale),supported:list(plan.supported),uncertain:list(plan.uncertain),rules:list(plan.rules)};
+ const m=[{key:'G01',asset:{id:'a',kind:'generated',width:2000,height:1500,derived:{boundary:'field'}},tier:'dominant'}];
+ const placed=(rationale,name,reason)=>({background:'#d4e4f4',rationale,layers:[{assetId:'G01',name,x:.5,y:.5,width:.3,rotation:0,opacity:1,reason}]});
+ for(const draft of [placed(full.rationale,fill(image.label),fill(image.reason)),placed(fill(layout.rationale),fill(layer.name),fill(layer.reason))])
+  assert.doesNotThrow(()=>projectSchema.parse(assemble(full,m,'x'.repeat(max(creationInput.shape.prompt)),draft)));
 });
 test('pre-crop transformations preserve originals, enforce permissions and record ancestry',async t=>{
  const store=await fixture(t),a=store.state.assets[0],before=await fs.readFile(path.join(store.root,'media',a.id+'.png'));

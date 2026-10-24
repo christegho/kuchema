@@ -19,10 +19,12 @@ export const layerSchema = z.object({
   crop: z.object({ x: z.number().min(0).max(.95), y: z.number().min(0).max(.95), zoom: z.number().min(1).max(5) }),
   visible: z.boolean(), locked: z.boolean(), note: z.string().max(2000),
 }).refine(l => l.shape !== 'polygon' || (l.points.length >= 6 && l.points.length % 2 === 0), { message: 'A polygon needs at least three complete coordinate pairs.' });
+// Evidence holds model-written text: rules begin with the layout rationale (up to 1200
+// characters from the plan, 1600 from the review), so these limits sit above every producer's.
 export const evidenceSchema = z.object({
-  supported: z.array(z.string().max(1000)).max(20),
-  uncertain: z.array(z.string().max(1000)).max(20),
-  rules: z.array(z.string().max(1000)).max(20),
+  supported: z.array(z.string().max(2000)).max(20),
+  uncertain: z.array(z.string().max(2000)).max(20),
+  rules: z.array(z.string().max(2000)).max(20),
 });
 export const projectSchema = z.object({
   title: z.string().max(160), brief: z.string().max(4000),

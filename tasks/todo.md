@@ -106,3 +106,11 @@ Plan: ~/.claude/plans/fancy-hugging-mochi.md
 - [x] Studio offers 15–20 images (default 15 → 21 fragments); API keeps 6–20
 - [x] Screens: per-screen coverage in measurement; repair rewards the emptiest screen and balances fragments/people across screens; `job.screens` + warnings
 - [x] npm test 120/120, build, browser. Real-material check (8fac6063): 18.7 MB master, corner #d4e4f4, fragments 5/5/6 and people 1/1/2 per screen (was 4/7/5 and 0/4/0)
+
+# Evidence limit: "evidence.rules.0 Too big: expected string to have <=1000 characters"
+
+- [x] Cause: the layout rationale (plan ≤1200, review ≤1600 characters) becomes `evidence.rules[0]`, which accepted ≤1000. Study b33a4d2e failed after 12 paid calls ($0.40), with all 21 fragments cut.
+- [x] Evidence strings accept ≤2000 (above every producer's limit)
+- [x] Contract test that builds the longest allowed plan and review text from the model schemas; it reproduces the error on the old limits and passes on the new
+- [x] Real-data check: b33a4d2e's saved fragments re-assembled without paid calls. Results: 5760 × 1080, 18.7 MB, 7/7/7 fragments and 2/2/2 people per screen, every size in range, 98.0% draft coverage before review.
+- Observation: the planner put the detail cuts in front of the people (layer order); not enforced by code
